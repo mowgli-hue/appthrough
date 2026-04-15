@@ -50,9 +50,29 @@ db.exec(`
     total REAL NOT NULL,
     status TEXT DEFAULT 'confirmed',
     delivery_address TEXT,
+    order_type TEXT DEFAULT 'delivery',
+    pickup_code TEXT,
+    customer_name TEXT,
+    customer_phone TEXT,
+    ready_at DATETIME,
+    picked_up_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
   );
 `);
+
+// --- Lightweight migrations for older DBs ---
+const orderCols = db.prepare("PRAGMA table_info(orders)").all().map(c => c.name);
+const addCol = (name, type) => {
+  if (!orderCols.includes(name)) {
+    db.exec(`ALTER TABLE orders ADD COLUMN ${name} ${type}`);
+  }
+};
+addCol('order_type', "TEXT DEFAULT 'delivery'");
+addCol('pickup_code', 'TEXT');
+addCol('customer_name', 'TEXT');
+addCol('customer_phone', 'TEXT');
+addCol('ready_at', 'DATETIME');
+addCol('picked_up_at', 'DATETIME');
 
 module.exports = db;
