@@ -75,4 +75,18 @@ addCol('customer_phone', 'TEXT');
 addCol('ready_at', 'DATETIME');
 addCol('picked_up_at', 'DATETIME');
 
+// Per-restaurant drive-thru config so any restaurant can onboard.
+const restaurantCols = db.prepare('PRAGMA table_info(restaurants)').all().map(c => c.name);
+const addRestaurantCol = (name, type) => {
+  if (!restaurantCols.includes(name)) {
+    db.exec(`ALTER TABLE restaurants ADD COLUMN ${name} ${type}`);
+  }
+};
+addRestaurantCol('greeting', 'TEXT');
+addRestaurantCol('supported_languages', "TEXT DEFAULT 'en,es,fr'");
+addRestaurantCol('default_language', "TEXT DEFAULT 'en'");
+addRestaurantCol('agent_voice', "TEXT DEFAULT 'friendly'");
+addRestaurantCol('pickup_instructions', 'TEXT');
+addRestaurantCol('drive_thru_enabled', 'INTEGER DEFAULT 1');
+
 module.exports = db;
