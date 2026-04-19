@@ -196,7 +196,7 @@ app.get('/api/pickup-orders', (req, res) => {
   res.json(orders);
 });
 
-// Get order by ID
+// Get order by ID (includes queue position + ETA for pickup orders)
 app.get('/api/orders/:id', (req, res) => {
   const order = db.prepare(`
     SELECT o.*, r.name as restaurant_name, r.image as restaurant_image
@@ -210,6 +210,22 @@ app.get('/api/orders/:id', (req, res) => {
   }
 
   order.items = JSON.parse(order.items);
+
+  if (order.order_type === 'pickup' && order.status === 'preparing') {
+    const ahead = db.prepare(`
+      SELECT COUNT(*) as cnt FROM orders
+      WHERE order_type = 'pickup'
+        AND status = 'preparing'
+        AND restaurant_id = ?
+        AND created_at < ?
+    `).get(order.restaurant_id, order.created_at);
+    order.queue_position = (ahead?.cnt || 0) + 1;
+    order.estimated_minutes = order.queue_position * 4;
+  } else if (order.order_type === 'pickup' && order.status === 'ready') {
+    order.queue_position = 0;
+    order.estimated_minutes = 0;
+  }
+
   res.json(order);
 });
 

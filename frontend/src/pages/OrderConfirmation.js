@@ -108,6 +108,25 @@ function OrderConfirmation() {
               <div className="pickup-code-sub">Show this to the staff when you arrive</div>
             </div>
 
+            {order.queue_position > 0 && (
+              <div className="queue-position-box">
+                <div className="queue-number">#{order.queue_position}</div>
+                <div className="queue-details">
+                  <strong>You're #{order.queue_position} in line</strong>
+                  <span>~{order.estimated_minutes} min estimated wait</span>
+                </div>
+              </div>
+            )}
+            {order.queue_position === 0 && order.status === 'ready' && (
+              <div className="queue-position-box queue-ready">
+                <div className="queue-number">NOW</div>
+                <div className="queue-details">
+                  <strong>Your order is ready!</strong>
+                  <span>Walk up and grab it</span>
+                </div>
+              </div>
+            )}
+
             <div className="pickup-progress">
               {PICKUP_STEPS.map((step, i) => {
                 const done = i <= currentStepIndex;

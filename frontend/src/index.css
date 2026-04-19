@@ -1483,6 +1483,50 @@ img {
   box-shadow: var(--shadow-lg);
 }
 
+/* Queue position */
+.queue-position-box {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #fff8e6;
+  border: 2px solid #f3b200;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+}
+
+.queue-position-box.queue-ready {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.queue-number {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--dark);
+  min-width: 60px;
+  text-align: center;
+}
+
+.queue-ready .queue-number {
+  color: var(--primary-dark);
+}
+
+.queue-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.queue-details strong {
+  font-size: 1.05rem;
+}
+
+.queue-details span {
+  font-size: 0.85rem;
+  color: var(--gray-700);
+}
+
 .voice-orb {
   width: 180px;
   height: 180px;
