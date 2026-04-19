@@ -378,19 +378,21 @@ app.post('/api/merchants/register', (req, res) => {
     pickup_instructions || '',
   );
 
-  // Add menu items
+  // Add menu items (skip items with no name or invalid price)
   if (menuItems && menuItems.length) {
     const stmt = db.prepare(`
       INSERT INTO menu_items (id, restaurant_id, name, description, price, image, category, popular)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const item of menuItems) {
+      const price = parseFloat(item.price);
+      if (!item.name || !item.name.trim() || !price || price <= 0) continue;
       stmt.run(
         uuidv4(),
         restaurantId,
-        item.name,
+        item.name.trim(),
         item.description || '',
-        item.price || 0,
+        price,
         item.image || '',
         item.category || 'Main',
         item.popular ? 1 : 0,

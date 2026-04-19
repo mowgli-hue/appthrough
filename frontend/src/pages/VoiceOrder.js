@@ -79,7 +79,7 @@ function VoiceOrder() {
   }, [messages]);
 
   const sendToAgent = useCallback(async (text) => {
-    if (!text.trim()) return;
+    if (!text.trim() || !sessionId) return;
     setMessages(m => [...m, { role: 'you', text }]);
     try {
       const res = await fetch('/api/agent/message', {

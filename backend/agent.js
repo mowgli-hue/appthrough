@@ -123,6 +123,14 @@ function detectIntent(text) {
 // --- Session storage -------------------------------------------------------
 
 const sessions = new Map();
+const SESSION_TTL = 60 * 60 * 1000; // 1 hour
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of sessions) {
+    if (now - session._createdAt > SESSION_TTL) sessions.delete(id);
+  }
+}, 5 * 60 * 1000); // cleanup every 5 min
 
 function newSession(opts = {}) {
   const session = {
@@ -135,6 +143,7 @@ function newSession(opts = {}) {
     pickupCode: null,
     kioskMode: false,
     pendingUpsell: null,
+    _createdAt: Date.now(),
   };
   if (opts.restaurantId) {
     const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(opts.restaurantId);

@@ -55,6 +55,7 @@ function CartSidebar({ isOpen, onClose }) {
               <div className="summary-row">
                 <span>Delivery Fee</span>
                 <span>${cart.deliveryFee.toFixed(2)}</span>
+                <small style={{ fontSize: '0.75rem', color: '#888' }}>Free with walk-up pickup</small>
               </div>
               <div className="summary-row">
                 <span>Tax</span>
