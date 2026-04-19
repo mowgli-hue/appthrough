@@ -3435,3 +3435,52 @@ img {
   width: 24px;
   border-radius: 4px;
 }
+
+/* ===== Kiosk Select ===== */
+.kiosk-select-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.kiosk-select-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.kiosk-select-header h1 { font-size: 2rem; }
+.kiosk-select-header p { color: var(--gray-700); }
+
+.kiosk-select-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.kiosk-select-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  text-decoration: none;
+  color: var(--dark);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.kiosk-select-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+.kiosk-select-img {
+  height: 140px;
+  background-size: cover;
+  background-position: center;
+}
+
+.kiosk-select-info {
+  padding: 0.85rem 1rem;
+}
+
+.kiosk-select-info h3 { margin-bottom: 0.2rem; }
+.kiosk-select-info span { font-size: 0.85rem; color: var(--gray-700); }
