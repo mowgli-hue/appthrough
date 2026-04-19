@@ -1,19 +1,95 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
+
+const PICKUP_STEPS = [
+  { key: 'preparing', label: 'Preparing your order', icon: '👨‍🍳' },
+  { key: 'ready', label: 'Ready for pickup!', icon: '🛎️' },
+  { key: 'picked_up', label: 'Picked up', icon: '✅' },
+];
 
 function OrderConfirmation() {
   const { id } = useParams();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const prevStatusRef = useRef(null);
 
+  // Poll for status updates (so the user sees "Ready" the moment staff marks it).
   useEffect(() => {
-    fetch(`/api/orders/${id}`)
-      .then(r => r.json())
-      .then(data => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/orders/${id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+
+        // Fire notification + chime + vibration when status transitions to "ready".
+        if (
+          data.order_type === 'pickup' &&
+          prevStatusRef.current &&
+          prevStatusRef.current !== 'ready' &&
+          data.status === 'ready'
+        ) {
+          // Audio chime (Web Audio API — no file needed)
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const playTone = (freq, start, dur) => {
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.value = freq;
+              gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+              gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + dur);
+              osc.connect(gain).connect(ctx.destination);
+              osc.start(ctx.currentTime + start);
+              osc.stop(ctx.currentTime + start + dur);
+            };
+            playTone(523, 0, 0.15);    // C5
+            playTone(659, 0.15, 0.15); // E5
+            playTone(784, 0.3, 0.3);   // G5
+          } catch {}
+
+          // Vibrate (mobile)
+          try {
+            navigator.vibrate?.([200, 100, 200, 100, 400]);
+          } catch {}
+
+          // Browser notification
+          if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification('Your order is ready! 🛎️', {
+                body: `${data.restaurant_name} — walk up and show code ${data.pickup_code}`,
+                tag: `order-${data.id}`,
+              });
+            } catch {}
+          }
+        }
+
+        prevStatusRef.current = data.status;
         setOrder(data);
         setLoading(false);
-      });
+      } catch {
+        /* network hiccup - keep polling */
+      }
+    };
+
+    load();
+    const interval = setInterval(load, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [id]);
+
+  const requestNotifications = async () => {
+    if (!('Notification' in window)) return;
+    try {
+      await Notification.requestPermission();
+      // Force re-render by touching state
+      setOrder(o => ({ ...o }));
+    } catch {}
+  };
 
   if (loading) {
     return <div className="loading"><div className="spinner"></div></div>;
@@ -23,14 +99,93 @@ function OrderConfirmation() {
     return <div className="error-page"><h2>Order not found</h2></div>;
   }
 
+  const isPickup = order.order_type === 'pickup';
+  const currentStepIndex = PICKUP_STEPS.findIndex(s => s.key === order.status);
+
   return (
     <div className="order-confirmation">
       <div className="confirmation-card">
-        <div className="confirmation-header">
-          <span className="confirmation-icon">✅</span>
-          <h1>Order Confirmed!</h1>
-          <p>Your order has been placed successfully</p>
-        </div>
+        {isPickup ? (
+          <>
+            <div className="confirmation-header pickup-header">
+              <span className="confirmation-icon">
+                {order.status === 'ready' ? '🛎️' : order.status === 'picked_up' ? '✅' : '🚶'}
+              </span>
+              <h1>
+                {order.status === 'ready'
+                  ? 'Your order is ready!'
+                  : order.status === 'picked_up'
+                  ? 'Thanks for stopping by!'
+                  : 'Walk-up Pickup Confirmed'}
+              </h1>
+              <p>
+                {order.status === 'ready'
+                  ? `Walk up to ${order.restaurant_name} and show your code.`
+                  : order.status === 'picked_up'
+                  ? 'Enjoy your meal!'
+                  : `We'll notify you on your phone when it's ready at ${order.restaurant_name}.`}
+              </p>
+            </div>
+
+            <div className="pickup-code-box">
+              <div className="pickup-code-label">Your pickup code</div>
+              <div className="pickup-code">{order.pickup_code}</div>
+              <div className="pickup-code-sub">Show this to the staff when you arrive</div>
+            </div>
+
+            {order.queue_position > 0 && (
+              <div className="queue-position-box">
+                <div className="queue-number">#{order.queue_position}</div>
+                <div className="queue-details">
+                  <strong>You're #{order.queue_position} in line</strong>
+                  <span>~{order.estimated_minutes} min estimated wait</span>
+                </div>
+              </div>
+            )}
+            {order.queue_position === 0 && order.status === 'ready' && (
+              <div className="queue-position-box queue-ready">
+                <div className="queue-number">NOW</div>
+                <div className="queue-details">
+                  <strong>Your order is ready!</strong>
+                  <span>Walk up and grab it</span>
+                </div>
+              </div>
+            )}
+
+            <div className="pickup-progress">
+              {PICKUP_STEPS.map((step, i) => {
+                const done = i <= currentStepIndex;
+                const active = i === currentStepIndex;
+                return (
+                  <div
+                    key={step.key}
+                    className={`pickup-step ${done ? 'done' : ''} ${active ? 'active' : ''}`}
+                  >
+                    <div className="pickup-step-dot">{done ? step.icon : i + 1}</div>
+                    <div className="pickup-step-label">{step.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {'Notification' in window && Notification.permission === 'default' && (
+              <button className="btn-primary" onClick={requestNotifications} style={{ marginBottom: '1rem' }}>
+                🔔 Enable phone notifications
+              </button>
+            )}
+            {'Notification' in window && Notification.permission === 'denied' && (
+              <p className="pickup-hint">
+                Notifications are blocked. Keep this page open — it updates in real time.
+              </p>
+            )}
+          </>
+        ) : (
+          <div className="confirmation-header">
+            <span className="confirmation-icon">✅</span>
+            <h1>Order Confirmed!</h1>
+            <p>Your order has been placed successfully</p>
+          </div>
+        )}
 
         <div className="confirmation-details">
           <div className="detail-row">
@@ -42,9 +197,21 @@ function OrderConfirmation() {
             <span>{order.restaurant_name}</span>
           </div>
           <div className="detail-row">
-            <span>Status</span>
-            <span className="status-badge">{order.status}</span>
+            <span>Type</span>
+            <span>{isPickup ? '🚶 Walk-up pickup' : '🛵 Delivery'}</span>
           </div>
+          <div className="detail-row">
+            <span>Status</span>
+            <span className={`status-badge status-${order.status}`}>
+              {order.status.replace('_', ' ')}
+            </span>
+          </div>
+          {isPickup && order.customer_phone && (
+            <div className="detail-row">
+              <span>Notify</span>
+              <span>{order.customer_phone}</span>
+            </div>
+          )}
         </div>
 
         <div className="confirmation-items">
@@ -62,7 +229,8 @@ function OrderConfirmation() {
             <span>Subtotal</span><span>${order.subtotal.toFixed(2)}</span>
           </div>
           <div className="summary-row">
-            <span>Delivery</span><span>${order.delivery_fee.toFixed(2)}</span>
+            <span>{isPickup ? 'Pickup' : 'Delivery'}</span>
+            <span>{isPickup ? 'FREE' : `$${order.delivery_fee.toFixed(2)}`}</span>
           </div>
           <div className="summary-row">
             <span>Tax</span><span>${order.tax.toFixed(2)}</span>

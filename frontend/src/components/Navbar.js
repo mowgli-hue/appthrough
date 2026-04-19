@@ -20,7 +20,7 @@ function Navbar({ onCartClick }) {
       <div className="navbar-container">
         <Link to="/" className="navbar-brand">
           <span className="brand-icon">🛵</span>
-          <span className="brand-text">AppThrough</span>
+          <span className="brand-text">App-Thru</span>
         </Link>
 
         <form className="navbar-search" onSubmit={handleSearch}>
@@ -34,7 +34,10 @@ function Navbar({ onCartClick }) {
         </form>
 
         <div className="navbar-actions">
+          <Link to="/register" className="nav-link nav-link-register">List Your Restaurant</Link>
+          <Link to="/voice" className="nav-link nav-link-highlight">🎙️ Drive-Thru</Link>
           <Link to="/orders" className="nav-link">Orders</Link>
+          <Link to="/kitchen" className="nav-link">Kitchen</Link>
           <button className="cart-button" onClick={onCartClick}>
             <span className="cart-icon">🛒</span>
             {itemCount > 0 && <span className="cart-badge">{itemCount}</span>}

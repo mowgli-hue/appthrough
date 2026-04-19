@@ -1,7 +1,7 @@
 {
-  "name": "appthrough-frontend",
+  "name": "app-thru-frontend",
   "version": "1.0.0",
-  "description": "Food delivery frontend",
+  "description": "App-Thru frontend",
   "private": true,
   "dependencies": {
     "react": "^18.2.0",
