@@ -34,6 +34,7 @@ function Navbar({ onCartClick }) {
         </form>
 
         <div className="navbar-actions">
+          <Link to="/register" className="nav-link nav-link-register">List Your Restaurant</Link>
           <Link to="/voice" className="nav-link nav-link-highlight">🎙️ Drive-Thru</Link>
           <Link to="/orders" className="nav-link">Orders</Link>
           <Link to="/kitchen" className="nav-link">Kitchen</Link>

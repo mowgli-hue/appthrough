@@ -342,6 +342,124 @@ app.patch('/api/restaurants/:id/config', (req, res) => {
   res.json(updated);
 });
 
+// --- Merchant registration (like Uber Eats / DoorDash merchant signup) ----
+
+// Register a new restaurant + menu
+app.post('/api/merchants/register', (req, res) => {
+  const {
+    name, cuisine, description, address, image,
+    delivery_time, delivery_fee, min_order,
+    greeting, pickup_instructions, menuItems,
+  } = req.body;
+
+  if (!name || !cuisine) {
+    return res.status(400).json({ error: 'Restaurant name and cuisine are required' });
+  }
+
+  const restaurantId = uuidv4();
+  db.prepare(`
+    INSERT INTO restaurants (
+      id, name, image, cuisine, rating, delivery_time, delivery_fee,
+      min_order, address, description, featured, greeting, pickup_instructions,
+      drive_thru_enabled
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 1)
+  `).run(
+    restaurantId,
+    name,
+    image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800',
+    cuisine,
+    4.5,
+    delivery_time || '15-25 min',
+    delivery_fee ?? 2.99,
+    min_order ?? 10,
+    address || '',
+    description || '',
+    greeting || '',
+    pickup_instructions || '',
+  );
+
+  // Add menu items
+  if (menuItems && menuItems.length) {
+    const stmt = db.prepare(`
+      INSERT INTO menu_items (id, restaurant_id, name, description, price, image, category, popular)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const item of menuItems) {
+      stmt.run(
+        uuidv4(),
+        restaurantId,
+        item.name,
+        item.description || '',
+        item.price || 0,
+        item.image || '',
+        item.category || 'Main',
+        item.popular ? 1 : 0,
+      );
+    }
+  }
+
+  const restaurant = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(restaurantId);
+  const items = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ?').all(restaurantId);
+
+  res.status(201).json({
+    restaurant,
+    menuItems: items,
+    links: {
+      kiosk: `/kiosk/${restaurantId}`,
+      admin: `/admin/${restaurantId}`,
+      kitchen: '/kitchen',
+    },
+  });
+});
+
+// Update menu items for a restaurant
+app.put('/api/restaurants/:id/menu', (req, res) => {
+  const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Restaurant not found' });
+
+  const { menuItems } = req.body;
+  if (!menuItems) return res.status(400).json({ error: 'menuItems required' });
+
+  // Remove old items and replace
+  db.prepare('DELETE FROM menu_items WHERE restaurant_id = ?').run(req.params.id);
+  const stmt = db.prepare(`
+    INSERT INTO menu_items (id, restaurant_id, name, description, price, image, category, popular)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const item of menuItems) {
+    stmt.run(
+      item.id || uuidv4(),
+      req.params.id,
+      item.name,
+      item.description || '',
+      item.price || 0,
+      item.image || '',
+      item.category || 'Main',
+      item.popular ? 1 : 0,
+    );
+  }
+
+  const items = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ?').all(req.params.id);
+  res.json(items);
+});
+
+// Get merchant dashboard stats
+app.get('/api/merchants/:id/stats', (req, res) => {
+  const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Restaurant not found' });
+
+  const totalOrders = db.prepare('SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ?').get(req.params.id).cnt;
+  const pickupOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ? AND order_type = 'pickup'").get(req.params.id).cnt;
+  const revenue = db.prepare('SELECT COALESCE(SUM(total), 0) as rev FROM orders WHERE restaurant_id = ?').get(req.params.id).rev;
+  const activeOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ? AND status IN ('preparing', 'ready', 'confirmed')").get(req.params.id).cnt;
+  const menuCount = db.prepare('SELECT COUNT(*) as cnt FROM menu_items WHERE restaurant_id = ?').get(req.params.id).cnt;
+
+  res.json({
+    restaurant: r,
+    stats: { totalOrders, pickupOrders, revenue: Math.round(revenue * 100) / 100, activeOrders, menuCount },
+  });
+});
+
 // Catch-all: serve React app
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
