@@ -11,13 +11,7 @@ function getSpeechRecognition() {
   return recog;
 }
 
-// --- Camera motion detector ------------------------------------------------
-// Uses getUserMedia to capture frames, compares consecutive frames on a hidden
-// canvas, and fires onMotion when the pixel-diff exceeds a threshold.
-
 function useMotionSensor({ enabled, onMotion, sensitivity = 30, threshold = 8 }) {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const prevFrameRef = useRef(null);
   const streamRef = useRef(null);
   const cooldownRef = useRef(false);
@@ -36,12 +30,10 @@ function useMotionSensor({ enabled, onMotion, sensitivity = 30, threshold = 8 })
     video.setAttribute('playsinline', '');
     video.setAttribute('autoplay', '');
     video.muted = true;
-    videoRef.current = video;
 
     const canvas = document.createElement('canvas');
     canvas.width = 160;
     canvas.height = 120;
-    canvasRef.current = canvas;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
     const startCamera = async () => {
@@ -53,9 +45,7 @@ function useMotionSensor({ enabled, onMotion, sensitivity = 30, threshold = 8 })
         video.srcObject = stream;
         await video.play();
         detectLoop();
-      } catch {
-        // Camera not available — sensor won't work, tap still works
-      }
+      } catch {}
     };
 
     const detectLoop = () => {
@@ -66,7 +56,6 @@ function useMotionSensor({ enabled, onMotion, sensitivity = 30, threshold = 8 })
       if (prevFrameRef.current && !cooldownRef.current) {
         const prev = prevFrameRef.current;
         let diffCount = 0;
-        // Sample every 4th pixel for speed
         for (let i = 0; i < data.length; i += 16) {
           const dr = Math.abs(data[i] - prev[i]);
           const dg = Math.abs(data[i + 1] - prev[i + 1]);
@@ -79,7 +68,6 @@ function useMotionSensor({ enabled, onMotion, sensitivity = 30, threshold = 8 })
         if (diffPercent > threshold) {
           cooldownRef.current = true;
           onMotion();
-          // 10s cooldown to avoid re-triggering
           setTimeout(() => { cooldownRef.current = false; }, 10000);
         }
       }
@@ -98,11 +86,7 @@ function useMotionSensor({ enabled, onMotion, sensitivity = 30, threshold = 8 })
       }
     };
   }, [enabled, onMotion, sensitivity, threshold]);
-
-  return { videoRef };
 }
-
-// ---------------------------------------------------------------------------
 
 function Kiosk() {
   const { restaurantId } = useParams();
@@ -113,12 +97,16 @@ function Kiosk() {
   const [state, setState] = useState(null);
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
-  const [typed, setTyped] = useState('');
-  const [screen, setScreen] = useState('idle');
+  const [screen, setScreen] = useState('idle'); // idle | ordering | payment | placed
   const [countdown, setCountdown] = useState(null);
-  const [sensorStatus, setSensorStatus] = useState('waiting'); // waiting | detected
+  const [sensorStatus, setSensorStatus] = useState('waiting');
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
   const recogRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const autoListenRef = useRef(true);
+  const sessionIdRef = useRef(null);
+
+  useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
 
   useEffect(() => {
     fetch(`/api/restaurants/${restaurantId}/kiosk`)
@@ -129,8 +117,31 @@ function Kiosk() {
       });
   }, [restaurantId]);
 
-  const speak = useCallback((text) => {
-    if (!('speechSynthesis' in window)) return;
+  // Auto-listen: start mic after agent finishes speaking
+  const autoListen = useCallback(() => {
+    if (!autoListenRef.current || !sessionIdRef.current) return;
+    setTimeout(() => {
+      if (!sessionIdRef.current) return;
+      const recog = getSpeechRecognition();
+      if (!recog) return;
+      recogRef.current = recog;
+      setListening(true);
+      recog.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setListening(false);
+        sendToAgentRef.current(transcript);
+      };
+      recog.onerror = () => setListening(false);
+      recog.onend = () => setListening(false);
+      try { recog.start(); } catch {}
+    }, 600);
+  }, []);
+
+  const speak = useCallback((text, shouldAutoListen = true) => {
+    if (!('speechSynthesis' in window)) {
+      if (shouldAutoListen) autoListen();
+      return;
+    }
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.rate = 1.02;
@@ -141,10 +152,16 @@ function Kiosk() {
       voices[0];
     if (preferred) utter.voice = preferred;
     utter.onstart = () => setSpeaking(true);
-    utter.onend = () => setSpeaking(false);
-    utter.onerror = () => setSpeaking(false);
+    utter.onend = () => {
+      setSpeaking(false);
+      if (shouldAutoListen) autoListen();
+    };
+    utter.onerror = () => {
+      setSpeaking(false);
+      if (shouldAutoListen) autoListen();
+    };
     window.speechSynthesis.speak(utter);
-  }, []);
+  }, [autoListen]);
 
   useEffect(() => {
     if ('speechSynthesis' in window) {
@@ -159,7 +176,7 @@ function Kiosk() {
   // Auto-reset after order placed
   useEffect(() => {
     if (screen !== 'placed') return;
-    let t = 30;
+    let t = 20;
     setCountdown(t);
     const interval = setInterval(() => {
       t--;
@@ -176,7 +193,10 @@ function Kiosk() {
     setState(null);
     setCountdown(null);
     setSensorStatus('waiting');
+    setPaymentProcessing(false);
+    autoListenRef.current = true;
     window.speechSynthesis?.cancel();
+    if (recogRef.current) { try { recogRef.current.stop(); } catch {} }
   }, []);
 
   const startSession = useCallback(async () => {
@@ -184,6 +204,7 @@ function Kiosk() {
     setSensorStatus('detected');
     setMessages([]);
     setState(null);
+    autoListenRef.current = true;
     try {
       const res = await fetch('/api/agent/session', {
         method: 'POST',
@@ -194,13 +215,12 @@ function Kiosk() {
       setSessionId(data.sessionId);
       setState(data.state);
       setMessages([{ role: 'agent', text: data.reply }]);
-      speak(data.reply);
+      speak(data.reply, true);
     } catch {
-      setMessages([{ role: 'agent', text: 'Could not start. Please tap to try again.' }]);
+      setMessages([{ role: 'agent', text: 'Could not start. Please step away and try again.' }]);
     }
   }, [restaurantId, speak]);
 
-  // --- Motion sensor: auto-start session when someone walks up ---
   const handleMotionDetected = useCallback(() => {
     if (screen === 'idle') {
       setSensorStatus('detected');
@@ -216,53 +236,42 @@ function Kiosk() {
   });
 
   const sendToAgent = useCallback(async (text) => {
-    if (!text.trim()) return;
+    if (!text.trim() || !sessionIdRef.current) return;
     setMessages(m => [...m, { role: 'you', text }]);
     try {
       const res = await fetch('/api/agent/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, message: text }),
+        body: JSON.stringify({ sessionId: sessionIdRef.current, message: text }),
       });
       const data = await res.json();
       setState(data.state);
       setMessages(m => [...m, { role: 'agent', text: data.reply }]);
-      speak(data.reply);
+
       if (data.orderId) {
-        setTimeout(() => setScreen('placed'), 4000);
+        // Order placed — go to payment screen
+        autoListenRef.current = false;
+        speak(data.reply, false);
+        setTimeout(() => setScreen('payment'), 3000);
+      } else {
+        speak(data.reply, true);
       }
     } catch {
       setMessages(m => [...m, { role: 'agent', text: 'Sorry, something went wrong.' }]);
     }
-  }, [sessionId, speak]);
+  }, [speak]);
 
-  const startListening = useCallback(() => {
-    if (!sessionId) return;
-    const recog = getSpeechRecognition();
-    if (!recog) return;
-    recogRef.current = recog;
-    setListening(true);
-    recog.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setListening(false);
-      sendToAgent(transcript);
-    };
-    recog.onerror = () => setListening(false);
-    recog.onend = () => setListening(false);
-    try { recog.start(); } catch {}
-  }, [sendToAgent, sessionId]);
+  const sendToAgentRef = useRef(sendToAgent);
+  useEffect(() => { sendToAgentRef.current = sendToAgent; }, [sendToAgent]);
 
-  const stopListening = useCallback(() => {
-    recogRef.current?.stop();
-    setListening(false);
+  // Simulate payment processing
+  const handlePayment = useCallback(() => {
+    setPaymentProcessing(true);
+    setTimeout(() => {
+      setPaymentProcessing(false);
+      setScreen('placed');
+    }, 3000);
   }, []);
-
-  const handleTypedSubmit = (e) => {
-    e.preventDefault();
-    if (!typed.trim()) return;
-    sendToAgent(typed);
-    setTyped('');
-  };
 
   const orderTotal = state?.items?.reduce((s, i) => s + i.price * i.quantity, 0) || 0;
   const tax = Math.round(orderTotal * 0.08 * 100) / 100;
@@ -272,7 +281,7 @@ function Kiosk() {
     return <div className="loading"><div className="spinner"></div></div>;
   }
 
-  // IDLE SCREEN — waiting for walk-up (camera sensor + tap fallback)
+  // IDLE SCREEN
   if (screen === 'idle') {
     return (
       <div className="kiosk-page">
@@ -296,10 +305,53 @@ function Kiosk() {
                 <span>🎤 Voice ordering</span>
                 <span>📱 Phone notifications</span>
                 <span>⏱️ Skip the line</span>
-                <span>💰 No delivery fee</span>
+                <span>💳 Tap to pay</span>
               </div>
-              <p className="kiosk-idle-tap">or tap anywhere to start</p>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // PAYMENT SCREEN
+  if (screen === 'payment') {
+    return (
+      <div className="kiosk-page">
+        <div className="kiosk-payment">
+          <div className="kiosk-payment-content">
+            {paymentProcessing ? (
+              <>
+                <div className="kiosk-payment-icon kiosk-payment-processing">💳</div>
+                <h1>Processing payment...</h1>
+                <div className="kiosk-payment-spinner"><div className="spinner" /></div>
+              </>
+            ) : (
+              <>
+                <div className="kiosk-payment-icon">💳</div>
+                <h1>Tap your card to pay</h1>
+                <div className="kiosk-payment-amount">${grandTotal.toFixed(2)}</div>
+                <div className="kiosk-payment-breakdown">
+                  <span>Subtotal: ${orderTotal.toFixed(2)}</span>
+                  <span>Tax: ${tax.toFixed(2)}</span>
+                </div>
+                <div className="kiosk-payment-pad" onClick={handlePayment}>
+                  <div className="kiosk-pad-visual">
+                    <div className="kiosk-pad-waves" />
+                    <span>📲</span>
+                  </div>
+                  <p>Tap, insert, or swipe your card on the reader below</p>
+                </div>
+                <div className="kiosk-payment-items">
+                  {state?.items?.map(i => (
+                    <span key={i.id}>{i.quantity}x {i.name}</span>
+                  ))}
+                </div>
+                <button className="btn-secondary" onClick={resetKiosk} style={{ marginTop: '1rem' }}>
+                  Cancel Order
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -313,46 +365,52 @@ function Kiosk() {
         <div className="kiosk-placed">
           <div className="kiosk-placed-content">
             <span className="kiosk-placed-icon">🎉</span>
-            <h1>Order Placed!</h1>
+            <h1>You're all set!</h1>
             <div className="kiosk-placed-code-box">
               <div className="kiosk-placed-code-label">Your pickup code</div>
               <div className="kiosk-placed-code">{state.pickupCode}</div>
             </div>
             <p className="kiosk-placed-msg">
               We'll text <strong>{state.phone}</strong> when your food is ready.
-              <br />Just show this code to the staff.
+              <br />Show this code to the staff when you pick up.
             </p>
             <div className="kiosk-placed-total">
-              Total: <strong>${grandTotal.toFixed(2)}</strong>
+              Paid: <strong>${grandTotal.toFixed(2)}</strong>
+            </div>
+            <div className="kiosk-placed-enjoy">
+              Walk away and relax — your phone will buzz when it's ready!
             </div>
             <div className="kiosk-reset-timer">
               Screen resets in {countdown}s
             </div>
-            <button className="btn-secondary" onClick={resetKiosk}>
-              Done — Next Customer
-            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // ORDERING SCREEN
+  // ORDERING SCREEN — fully voice-driven, minimal touch
   return (
     <div className="kiosk-page">
       <div className="kiosk-ordering">
         <div className="kiosk-top-bar">
           <h2>{restaurant.name}</h2>
           <div className="kiosk-top-right">
-            <span className="kiosk-sensor-badge-sm"><span className="kiosk-sensor-dot" /> Sensor active</span>
-            <button className="btn-secondary kiosk-cancel" onClick={resetKiosk}>Cancel</button>
+            <span className="kiosk-sensor-badge-sm"><span className="kiosk-sensor-dot" /> Listening</span>
           </div>
         </div>
 
         <div className="kiosk-body">
           <div className="kiosk-conversation">
-            <div className={`kiosk-orb ${speaking ? 'speaking' : listening ? 'listening' : ''}`}>
+            <div className={`kiosk-orb kiosk-orb-large ${speaking ? 'speaking' : listening ? 'listening' : 'waiting'}`}>
+              <div className="kiosk-orb-inner-ring" />
               {speaking ? '🗣️' : listening ? '👂' : '🤖'}
+            </div>
+
+            <div className="kiosk-voice-status">
+              {speaking && 'Agent is speaking...'}
+              {listening && 'Listening — speak now'}
+              {!speaking && !listening && 'Processing...'}
             </div>
 
             <div className="kiosk-transcript">
@@ -364,43 +422,6 @@ function Kiosk() {
               ))}
               <div ref={messagesEndRef} />
             </div>
-
-            <div className="kiosk-input-area">
-              <button
-                className={`kiosk-mic-btn ${listening ? 'active' : ''}`}
-                onClick={listening ? stopListening : startListening}
-                disabled={speaking}
-              >
-                {listening ? '🛑 Listening...' : '🎤 Tap to Speak'}
-              </button>
-              <form className="kiosk-typed" onSubmit={handleTypedSubmit}>
-                <input
-                  type="text"
-                  placeholder="Or type here..."
-                  value={typed}
-                  onChange={e => setTyped(e.target.value)}
-                />
-                <button type="submit">Send</button>
-              </form>
-            </div>
-
-            {popular.length > 0 && (!state?.items?.length) && (
-              <div className="kiosk-quick-picks">
-                <h4>Quick picks — tap to add:</h4>
-                <div className="kiosk-quick-grid">
-                  {popular.slice(0, 6).map(item => (
-                    <button
-                      key={item.id}
-                      className="kiosk-quick-item"
-                      onClick={() => sendToAgent(`I'd like the ${item.name}`)}
-                    >
-                      <span className="kiosk-quick-name">{item.name}</span>
-                      <span className="kiosk-quick-price">${item.price.toFixed(2)}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="kiosk-order-panel">
@@ -420,15 +441,9 @@ function Kiosk() {
                   <div><span>Tax</span><span>${tax.toFixed(2)}</span></div>
                   <div className="kiosk-grand-total"><span>Total</span><span>${grandTotal.toFixed(2)}</span></div>
                 </div>
-                <button
-                  className="btn-primary kiosk-checkout-btn"
-                  onClick={() => sendToAgent("that's it")}
-                >
-                  Checkout →
-                </button>
               </>
             ) : (
-              <p className="kiosk-empty-order">Speak or tap to add items</p>
+              <p className="kiosk-empty-order">Just say what you'd like!</p>
             )}
             {state?.name && <div className="kiosk-order-meta">👤 {state.name}</div>}
             {state?.phone && <div className="kiosk-order-meta">📞 {state.phone}</div>}
