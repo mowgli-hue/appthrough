@@ -167,8 +167,7 @@ function Kiosk() {
       if (t <= 0) { clearInterval(interval); resetKiosk(); }
     }, 1000);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen]);
+  }, [screen]); // resetKiosk is stable via useCallback
 
   const resetKiosk = useCallback(() => {
     setScreen('idle');
