@@ -101,6 +101,8 @@ function Kiosk() {
   const [countdown, setCountdown] = useState(null);
   const [sensorStatus, setSensorStatus] = useState('waiting');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [menuItems, setMenuItems] = useState([]);
   const recogRef = useRef(null);
   const messagesEndRef = useRef(null);
   const autoListenRef = useRef(true);
@@ -114,8 +116,18 @@ function Kiosk() {
       .then(data => {
         setRestaurant(data.restaurant);
         setPopular(data.popular || []);
+        setMenuItems(data.menuItems || []);
       });
   }, [restaurantId]);
+
+  // Slideshow: rotate through menu item images on idle screen
+  useEffect(() => {
+    if (screen !== 'idle' || menuItems.length === 0) return;
+    const interval = setInterval(() => {
+      setSlideIndex(i => (i + 1) % menuItems.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [screen, menuItems.length]);
 
   // Auto-listen: start mic after agent finishes speaking
   const autoListen = useCallback(() => {
@@ -281,32 +293,74 @@ function Kiosk() {
     return <div className="loading"><div className="spinner"></div></div>;
   }
 
-  // IDLE SCREEN
+  // IDLE SCREEN — food slideshow when no customer present
   if (screen === 'idle') {
+    const currentItem = menuItems[slideIndex];
+    const hasImages = menuItems.some(m => m.image);
+
     return (
       <div className="kiosk-page">
         <div className="kiosk-idle" onClick={startSession}>
-          <div className="kiosk-idle-bg" style={{ backgroundImage: `url(${restaurant.image})` }} />
+          {/* Background slideshow */}
+          {hasImages ? (
+            <div className="kiosk-slideshow">
+              {menuItems.map((item, i) => (
+                <div
+                  key={item.id}
+                  className={`kiosk-slide ${i === slideIndex ? 'active' : ''}`}
+                  style={{ backgroundImage: `url(${item.image || restaurant.image})` }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="kiosk-idle-bg" style={{ backgroundImage: `url(${restaurant.image})` }} />
+          )}
+
           <div className="kiosk-idle-overlay">
-            <div className="kiosk-idle-content">
+            {/* Top: restaurant branding */}
+            <div className="kiosk-idle-top">
               <h1>{restaurant.name}</h1>
+              <div className="kiosk-idle-cuisine">{restaurant.cuisine}</div>
+            </div>
+
+            {/* Center: current food item promo */}
+            {currentItem && (
+              <div className="kiosk-idle-promo">
+                <div className="kiosk-promo-name">{currentItem.name}</div>
+                {currentItem.description && (
+                  <div className="kiosk-promo-desc">{currentItem.description}</div>
+                )}
+                <div className="kiosk-promo-price">${currentItem.price.toFixed(2)}</div>
+                {currentItem.popular === 1 && <span className="kiosk-promo-badge">Popular</span>}
+              </div>
+            )}
+
+            {/* Bottom: walk-up prompt */}
+            <div className="kiosk-idle-bottom">
               <div className="kiosk-idle-icon">
                 <div className="kiosk-pulse-ring" />
                 <div className="kiosk-pulse-ring kiosk-pulse-ring-2" />
                 <span>🚶</span>
               </div>
               <h2>Walk up to order</h2>
-              <p>Step forward — the sensor will detect you automatically</p>
               <div className="kiosk-sensor-badge">
                 <span className="kiosk-sensor-dot" />
-                {sensorStatus === 'waiting' ? 'Sensor active — watching for customers' : 'Customer detected!'}
+                {sensorStatus === 'waiting' ? 'Sensor active' : 'Customer detected!'}
               </div>
               <div className="kiosk-idle-features">
                 <span>🎤 Voice ordering</span>
-                <span>📱 Phone notifications</span>
-                <span>⏱️ Skip the line</span>
+                <span>📱 Get notified</span>
                 <span>💳 Tap to pay</span>
               </div>
+
+              {/* Slide dots */}
+              {menuItems.length > 1 && (
+                <div className="kiosk-slide-dots">
+                  {menuItems.map((_, i) => (
+                    <span key={i} className={`kiosk-dot ${i === slideIndex ? 'active' : ''}`} />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
