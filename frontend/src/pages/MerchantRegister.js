@@ -72,7 +72,7 @@ function MerchantRegister() {
     <div className="register-page">
       <div className="register-container">
         <div className="register-header">
-          <h1>Join AppThrough</h1>
+          <h1>Join App-Thru</h1>
           <p>Set up your restaurant's drive-thru kiosk in minutes. No hardware needed — just a tablet and a dream.</p>
         </div>
 

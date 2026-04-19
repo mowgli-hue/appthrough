@@ -222,7 +222,7 @@ function handleTurn(session, userText) {
       }
       session.stage = 'restaurant';
       return {
-        reply: "Hi, welcome to AppThrough! I'm your order assistant. Which restaurant would you like to order from today?",
+        reply: "Hi, welcome to App-Thru! I'm your order assistant. Which restaurant would you like to order from today?",
       };
     }
 

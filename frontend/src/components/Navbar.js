@@ -20,7 +20,7 @@ function Navbar({ onCartClick }) {
       <div className="navbar-container">
         <Link to="/" className="navbar-brand">
           <span className="brand-icon">🛵</span>
-          <span className="brand-text">AppThrough</span>
+          <span className="brand-text">App-Thru</span>
         </Link>
 
         <form className="navbar-search" onSubmit={handleSearch}>

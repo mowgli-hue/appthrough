@@ -1,7 +1,7 @@
 {
-  "name": "appthrough-backend",
+  "name": "app-thru-backend",
   "version": "1.0.0",
-  "description": "Food delivery backend API",
+  "description": "App-Thru backend API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

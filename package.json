@@ -1,7 +1,7 @@
 {
-  "name": "appthrough-food-delivery",
+  "name": "app-thru",
   "version": "1.0.0",
-  "description": "Food delivery app similar to Uber Eats",
+  "description": "App-Thru: Walk up, order, pick up. AI-powered walk-up ordering for any restaurant.",
   "private": true,
   "scripts": {
     "install:all": "cd backend && npm install && cd ../frontend && npm install",

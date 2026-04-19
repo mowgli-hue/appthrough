@@ -135,7 +135,7 @@ function VoiceOrder() {
   return (
     <div className="voice-page">
       <div className="voice-header">
-        <h1>🎙️ AppThrough Drive-Thru</h1>
+        <h1>🎙️ App-Thru Drive-Thru</h1>
         <p>Talk to our AI order assistant — just like pulling up to the speaker.</p>
       </div>
 
