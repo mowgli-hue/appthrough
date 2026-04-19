@@ -244,12 +244,14 @@ app.get('/api/orders', (req, res) => {
 
 // --- AI Drive-through voice agent ----------------------------------------
 
-// Start a new voice ordering session
+// Start a new voice ordering session (optionally scoped to a restaurant for kiosk mode)
 app.post('/api/agent/session', (req, res) => {
+  const { restaurantId } = req.body || {};
   const sessionId = uuidv4();
-  const session = agent.getSession(sessionId);
+  const opts = restaurantId ? { restaurantId } : {};
+  const session = agent.getSession(sessionId, opts);
   const { reply } = agent.handleTurn(session, '');
-  res.json({ sessionId, reply, state: publicState(session) });
+  res.json({ sessionId, reply, state: publicState(session), kioskMode: session.kioskMode });
 });
 
 // Send a user utterance; get the agent's reply back
@@ -290,20 +292,30 @@ app.post('/api/agent/message', (req, res) => {
     });
   }
 
-  res.json({ reply: result.reply, state: publicState(session) });
+  res.json({ reply: result.reply, state: publicState(session), upsell: result.upsell || null });
 });
 
 function publicState(s) {
   return {
     stage: s.stage,
-    restaurant: s.restaurant ? { id: s.restaurant.id, name: s.restaurant.name } : null,
+    restaurant: s.restaurant ? { id: s.restaurant.id, name: s.restaurant.name, image: s.restaurant.image } : null,
     items: s.items,
     name: s.name,
     phone: s.phone,
     orderId: s.orderId,
     pickupCode: s.pickupCode,
+    kioskMode: s.kioskMode,
   };
 }
+
+// Get restaurant info for kiosk display
+app.get('/api/restaurants/:id/kiosk', (req, res) => {
+  const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Restaurant not found' });
+  const menuItems = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? ORDER BY popular DESC, name ASC').all(req.params.id);
+  const popular = menuItems.filter(m => m.popular);
+  res.json({ restaurant: r, menuItems, popular });
+});
 
 // Catch-all: serve React app
 app.get('*', (req, res) => {
