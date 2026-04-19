@@ -284,8 +284,9 @@ app.post('/api/agent/message', (req, res) => {
 
     return res.json({
       reply:
-        `You're all set! Your pickup code is ${pickupCode.split('').join(' ')}. ` +
-        `We'll text ${session.phone} when your food is ready. See you soon!`,
+        `Awesome, you're all set ${session.name}! Your pickup code is ${pickupCode.split('').join(' ')}. ` +
+        `We'll send a text to your phone when your food is ready. ` +
+        `Just walk up and show your code. Enjoy!`,
       state: publicState(session),
       orderId,
       pickupCode,
