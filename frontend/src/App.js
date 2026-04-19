@@ -12,6 +12,7 @@ import Orders from './pages/Orders';
 import KitchenPickup from './pages/KitchenPickup';
 import VoiceOrder from './pages/VoiceOrder';
 import Kiosk from './pages/Kiosk';
+import RestaurantAdmin from './pages/RestaurantAdmin';
 
 function App() {
   const [cartOpen, setCartOpen] = React.useState(false);
@@ -32,6 +33,7 @@ function App() {
               <Route path="/kitchen" element={<KitchenPickup />} />
               <Route path="/voice" element={<VoiceOrder />} />
               <Route path="/kiosk/:restaurantId" element={<Kiosk />} />
+              <Route path="/admin/:id" element={<RestaurantAdmin />} />
             </Routes>
           </main>
           <CartSidebar isOpen={cartOpen} onClose={() => setCartOpen(false)} />

@@ -1838,10 +1838,62 @@ img {
   margin-bottom: 0.5rem;
 }
 
+.kiosk-pulse-ring-2 {
+  animation-delay: 1s;
+}
+
 .kiosk-idle-content p {
   font-size: 1.1rem;
   opacity: 0.8;
-  margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
+}
+
+.kiosk-idle-tap {
+  font-size: 0.9rem !important;
+  opacity: 0.5 !important;
+  margin-top: 1.5rem !important;
+}
+
+.kiosk-sensor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(0, 204, 106, 0.15);
+  border: 1px solid rgba(0, 204, 106, 0.4);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: #66ffaa;
+  margin-bottom: 1.5rem;
+}
+
+.kiosk-sensor-badge-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #66ffaa;
+  opacity: 0.8;
+}
+
+.kiosk-sensor-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: inline-block;
+  animation: sensor-blink 2s ease-in-out infinite;
+}
+
+@keyframes sensor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.kiosk-top-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .kiosk-idle-features {
@@ -2201,5 +2253,211 @@ img {
   }
   .kiosk-idle-content h1 {
     font-size: 2rem;
+  }
+}
+
+/* ===== Restaurant Admin ===== */
+.admin-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.admin-header h1 {
+  font-size: 1.8rem;
+}
+
+.admin-header p {
+  color: var(--gray-700);
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.admin-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.admin-card h3 {
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.admin-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.admin-label small {
+  font-weight: 400;
+  color: var(--gray-700);
+  font-size: 0.82rem;
+}
+
+.admin-textarea,
+.admin-select {
+  padding: 0.7rem 0.85rem;
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.admin-textarea:focus,
+.admin-select:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.admin-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.2rem;
+}
+
+.admin-toggle {
+  width: 50px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--gray-300);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.admin-toggle.on {
+  background: var(--primary);
+}
+
+.admin-toggle-knob {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--white);
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: left 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+
+.admin-toggle.on .admin-toggle-knob {
+  left: 25px;
+}
+
+/* Preview */
+.admin-preview-screen {
+  background: var(--dark);
+  border-radius: var(--radius-sm);
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--white);
+  margin-bottom: 0.75rem;
+}
+
+.admin-preview-idle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.admin-preview-icon {
+  font-size: 2.5rem;
+}
+
+.admin-preview-sensor {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #66ffaa;
+  font-size: 0.75rem;
+  margin-top: 0.3rem;
+}
+
+.admin-preview-hint {
+  font-size: 0.85rem;
+  color: var(--gray-700);
+  line-height: 1.4;
+}
+
+/* Quick links */
+.admin-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-link-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--gray-100);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--dark);
+  transition: background 0.15s;
+}
+
+.admin-link-card:hover {
+  background: var(--primary-light);
+}
+
+.admin-link-card span:first-child {
+  font-size: 1.5rem;
+}
+
+.admin-link-card strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.admin-link-card small {
+  color: var(--gray-500);
+  font-size: 0.8rem;
+}
+
+/* Save bar */
+.admin-save-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.admin-saved {
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+
+@media (max-width: 820px) {
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start;
   }
 }

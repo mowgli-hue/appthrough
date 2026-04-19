@@ -11,6 +11,99 @@ function getSpeechRecognition() {
   return recog;
 }
 
+// --- Camera motion detector ------------------------------------------------
+// Uses getUserMedia to capture frames, compares consecutive frames on a hidden
+// canvas, and fires onMotion when the pixel-diff exceeds a threshold.
+
+function useMotionSensor({ enabled, onMotion, sensitivity = 30, threshold = 8 }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const prevFrameRef = useRef(null);
+  const streamRef = useRef(null);
+  const cooldownRef = useRef(false);
+
+  useEffect(() => {
+    if (!enabled) {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+      return;
+    }
+
+    let animId;
+    const video = document.createElement('video');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('autoplay', '');
+    video.muted = true;
+    videoRef.current = video;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 160;
+    canvas.height = 120;
+    canvasRef.current = canvas;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const startCamera = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: 160, height: 120 },
+        });
+        streamRef.current = stream;
+        video.srcObject = stream;
+        await video.play();
+        detectLoop();
+      } catch {
+        // Camera not available — sensor won't work, tap still works
+      }
+    };
+
+    const detectLoop = () => {
+      ctx.drawImage(video, 0, 0, 160, 120);
+      const frame = ctx.getImageData(0, 0, 160, 120);
+      const data = frame.data;
+
+      if (prevFrameRef.current && !cooldownRef.current) {
+        const prev = prevFrameRef.current;
+        let diffCount = 0;
+        // Sample every 4th pixel for speed
+        for (let i = 0; i < data.length; i += 16) {
+          const dr = Math.abs(data[i] - prev[i]);
+          const dg = Math.abs(data[i + 1] - prev[i + 1]);
+          const db = Math.abs(data[i + 2] - prev[i + 2]);
+          if (dr + dg + db > sensitivity) diffCount++;
+        }
+        const totalSampled = data.length / 16;
+        const diffPercent = (diffCount / totalSampled) * 100;
+
+        if (diffPercent > threshold) {
+          cooldownRef.current = true;
+          onMotion();
+          // 10s cooldown to avoid re-triggering
+          setTimeout(() => { cooldownRef.current = false; }, 10000);
+        }
+      }
+
+      prevFrameRef.current = new Uint8ClampedArray(data);
+      animId = requestAnimationFrame(detectLoop);
+    };
+
+    startCamera();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [enabled, onMotion, sensitivity, threshold]);
+
+  return { videoRef };
+}
+
+// ---------------------------------------------------------------------------
+
 function Kiosk() {
   const { restaurantId } = useParams();
   const [restaurant, setRestaurant] = useState(null);
@@ -21,12 +114,12 @@ function Kiosk() {
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [typed, setTyped] = useState('');
-  const [screen, setScreen] = useState('idle'); // idle | ordering | placed
+  const [screen, setScreen] = useState('idle');
   const [countdown, setCountdown] = useState(null);
+  const [sensorStatus, setSensorStatus] = useState('waiting'); // waiting | detected
   const recogRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // Load restaurant info
   useEffect(() => {
     fetch(`/api/restaurants/${restaurantId}/kiosk`)
       .then(r => r.json())
@@ -63,7 +156,7 @@ function Kiosk() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-reset after order is placed (30s countdown)
+  // Auto-reset after order placed
   useEffect(() => {
     if (screen !== 'placed') return;
     let t = 30;
@@ -71,10 +164,7 @@ function Kiosk() {
     const interval = setInterval(() => {
       t--;
       setCountdown(t);
-      if (t <= 0) {
-        clearInterval(interval);
-        resetKiosk();
-      }
+      if (t <= 0) { clearInterval(interval); resetKiosk(); }
     }, 1000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -86,11 +176,13 @@ function Kiosk() {
     setMessages([]);
     setState(null);
     setCountdown(null);
+    setSensorStatus('waiting');
     window.speechSynthesis?.cancel();
   }, []);
 
   const startSession = useCallback(async () => {
     setScreen('ordering');
+    setSensorStatus('detected');
     setMessages([]);
     setState(null);
     try {
@@ -108,6 +200,21 @@ function Kiosk() {
       setMessages([{ role: 'agent', text: 'Could not start. Please tap to try again.' }]);
     }
   }, [restaurantId, speak]);
+
+  // --- Motion sensor: auto-start session when someone walks up ---
+  const handleMotionDetected = useCallback(() => {
+    if (screen === 'idle') {
+      setSensorStatus('detected');
+      startSession();
+    }
+  }, [screen, startSession]);
+
+  useMotionSensor({
+    enabled: screen === 'idle',
+    onMotion: handleMotionDetected,
+    sensitivity: 35,
+    threshold: 10,
+  });
 
   const sendToAgent = useCallback(async (text) => {
     if (!text.trim()) return;
@@ -166,7 +273,7 @@ function Kiosk() {
     return <div className="loading"><div className="spinner"></div></div>;
   }
 
-  // IDLE SCREEN — waiting for customer to walk up
+  // IDLE SCREEN — waiting for walk-up (camera sensor + tap fallback)
   if (screen === 'idle') {
     return (
       <div className="kiosk-page">
@@ -177,15 +284,22 @@ function Kiosk() {
               <h1>{restaurant.name}</h1>
               <div className="kiosk-idle-icon">
                 <div className="kiosk-pulse-ring" />
+                <div className="kiosk-pulse-ring kiosk-pulse-ring-2" />
                 <span>🚶</span>
               </div>
               <h2>Walk up to order</h2>
-              <p>Tap the screen or step forward to start</p>
+              <p>Step forward — the sensor will detect you automatically</p>
+              <div className="kiosk-sensor-badge">
+                <span className="kiosk-sensor-dot" />
+                {sensorStatus === 'waiting' ? 'Sensor active — watching for customers' : 'Customer detected!'}
+              </div>
               <div className="kiosk-idle-features">
                 <span>🎤 Voice ordering</span>
                 <span>📱 Phone notifications</span>
                 <span>⏱️ Skip the line</span>
+                <span>💰 No delivery fee</span>
               </div>
+              <p className="kiosk-idle-tap">or tap anywhere to start</p>
             </div>
           </div>
         </div>
@@ -193,7 +307,7 @@ function Kiosk() {
     );
   }
 
-  // PLACED SCREEN — order placed, show code, auto-reset
+  // PLACED SCREEN
   if (screen === 'placed' && state?.pickupCode) {
     return (
       <div className="kiosk-page">
@@ -224,13 +338,16 @@ function Kiosk() {
     );
   }
 
-  // ORDERING SCREEN — full kiosk ordering UI
+  // ORDERING SCREEN
   return (
     <div className="kiosk-page">
       <div className="kiosk-ordering">
         <div className="kiosk-top-bar">
           <h2>{restaurant.name}</h2>
-          <button className="btn-secondary kiosk-cancel" onClick={resetKiosk}>Cancel</button>
+          <div className="kiosk-top-right">
+            <span className="kiosk-sensor-badge-sm"><span className="kiosk-sensor-dot" /> Sensor active</span>
+            <button className="btn-secondary kiosk-cancel" onClick={resetKiosk}>Cancel</button>
+          </div>
         </div>
 
         <div className="kiosk-body">
@@ -268,9 +385,9 @@ function Kiosk() {
               </form>
             </div>
 
-            {popular.length > 0 && state?.items?.length === 0 && (
+            {popular.length > 0 && (!state?.items?.length) && (
               <div className="kiosk-quick-picks">
-                <h4>Quick picks:</h4>
+                <h4>Quick picks — tap to add:</h4>
                 <div className="kiosk-quick-grid">
                   {popular.slice(0, 6).map(item => (
                     <button

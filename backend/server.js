@@ -317,6 +317,31 @@ app.get('/api/restaurants/:id/kiosk', (req, res) => {
   res.json({ restaurant: r, menuItems, popular });
 });
 
+// Update restaurant drive-thru config (admin onboarding)
+app.patch('/api/restaurants/:id/config', (req, res) => {
+  const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Restaurant not found' });
+
+  const { greeting, supported_languages, default_language, agent_voice, pickup_instructions, drive_thru_enabled } = req.body;
+  const fields = [];
+  const values = [];
+
+  if (greeting !== undefined) { fields.push('greeting = ?'); values.push(greeting); }
+  if (supported_languages !== undefined) { fields.push('supported_languages = ?'); values.push(supported_languages); }
+  if (default_language !== undefined) { fields.push('default_language = ?'); values.push(default_language); }
+  if (agent_voice !== undefined) { fields.push('agent_voice = ?'); values.push(agent_voice); }
+  if (pickup_instructions !== undefined) { fields.push('pickup_instructions = ?'); values.push(pickup_instructions); }
+  if (drive_thru_enabled !== undefined) { fields.push('drive_thru_enabled = ?'); values.push(drive_thru_enabled ? 1 : 0); }
+
+  if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
+
+  values.push(req.params.id);
+  db.prepare(`UPDATE restaurants SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+
+  const updated = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  res.json(updated);
+});
+
 // Catch-all: serve React app
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
