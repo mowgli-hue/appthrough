@@ -24,21 +24,46 @@ function OrderConfirmation() {
         const data = await res.json();
         if (cancelled) return;
 
-        // Fire a browser notification when status transitions to "ready".
+        // Fire notification + chime + vibration when status transitions to "ready".
         if (
           data.order_type === 'pickup' &&
           prevStatusRef.current &&
           prevStatusRef.current !== 'ready' &&
-          data.status === 'ready' &&
-          'Notification' in window &&
-          Notification.permission === 'granted'
+          data.status === 'ready'
         ) {
+          // Audio chime (Web Audio API — no file needed)
           try {
-            new Notification('Your order is ready! 🛎️', {
-              body: `${data.restaurant_name} — walk up and show code ${data.pickup_code}`,
-              tag: `order-${data.id}`,
-            });
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const playTone = (freq, start, dur) => {
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.value = freq;
+              gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+              gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + dur);
+              osc.connect(gain).connect(ctx.destination);
+              osc.start(ctx.currentTime + start);
+              osc.stop(ctx.currentTime + start + dur);
+            };
+            playTone(523, 0, 0.15);    // C5
+            playTone(659, 0.15, 0.15); // E5
+            playTone(784, 0.3, 0.3);   // G5
           } catch {}
+
+          // Vibrate (mobile)
+          try {
+            navigator.vibrate?.([200, 100, 200, 100, 400]);
+          } catch {}
+
+          // Browser notification
+          if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification('Your order is ready! 🛎️', {
+                body: `${data.restaurant_name} — walk up and show code ${data.pickup_code}`,
+                tag: `order-${data.id}`,
+              });
+            } catch {}
+          }
         }
 
         prevStatusRef.current = data.status;
