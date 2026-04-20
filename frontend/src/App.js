@@ -16,6 +16,7 @@ import KioskSelect from './pages/KioskSelect';
 import RestaurantAdmin from './pages/RestaurantAdmin';
 import MerchantRegister from './pages/MerchantRegister';
 import MerchantDashboard from './pages/MerchantDashboard';
+import SetupGuide from './pages/SetupGuide';
 
 function App() {
   const [cartOpen, setCartOpen] = React.useState(false);
@@ -40,6 +41,7 @@ function App() {
               <Route path="/admin/:id" element={<RestaurantAdmin />} />
               <Route path="/register" element={<MerchantRegister />} />
               <Route path="/merchant/:id" element={<MerchantDashboard />} />
+              <Route path="/setup/:id" element={<SetupGuide />} />
             </Routes>
           </main>
           <CartSidebar isOpen={cartOpen} onClose={() => setCartOpen(false)} />

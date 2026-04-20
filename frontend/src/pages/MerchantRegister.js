@@ -61,7 +61,7 @@ function MerchantRegister() {
         throw new Error(err.error || 'Registration failed');
       }
       const data = await res.json();
-      navigate(`/merchant/${data.restaurant.id}`);
+      navigate(`/setup/${data.restaurant.id}`);
     } catch (e) {
       setError(e.message);
       setSubmitting(false);
