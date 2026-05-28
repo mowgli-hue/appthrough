@@ -89,4 +89,33 @@ addRestaurantCol('agent_voice', "TEXT DEFAULT 'friendly'");
 addRestaurantCol('pickup_instructions', 'TEXT');
 addRestaurantCol('drive_thru_enabled', 'INTEGER DEFAULT 1');
 
+// Merchants table for authentication
+db.exec(`
+  CREATE TABLE IF NOT EXISTS merchants (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    restaurant_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+`);
+
+// Payment tracking
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL,
+    stripe_payment_intent TEXT,
+    amount_cents INTEGER NOT NULL,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+  );
+`);
+
+// Add payment_id to orders
+addCol('payment_id', 'TEXT');
+addCol('payment_status', "TEXT DEFAULT 'pending'");
+
 module.exports = db;

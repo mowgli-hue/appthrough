@@ -19,6 +19,7 @@ function MerchantRegister() {
     name: '', cuisine: '', description: '', address: '',
     image: '', delivery_time: '15-25 min', delivery_fee: '2.99',
     min_order: '10', greeting: '', pickup_instructions: '',
+    email: '', password: '',
   });
 
   const [menuItems, setMenuItems] = useState([
@@ -37,7 +38,7 @@ function MerchantRegister() {
     setMenuItems(items => items.filter((_, i) => i !== index));
   };
 
-  const validStep1 = info.name.trim() && info.cuisine;
+  const validStep1 = info.name.trim() && info.cuisine && info.email.trim() && info.password.length >= 6;
   const validStep2 = menuItems.some(i => i.name.trim() && parseFloat(i.price) > 0);
 
   const handleSubmit = async () => {
@@ -61,6 +62,10 @@ function MerchantRegister() {
         throw new Error(err.error || 'Registration failed');
       }
       const data = await res.json();
+      if (data.token) {
+        localStorage.setItem('appthru_token', data.token);
+        localStorage.setItem('appthru_restaurant_id', data.restaurant.id);
+      }
       navigate(`/setup/${data.restaurant.id}`);
     } catch (e) {
       setError(e.message);
@@ -84,7 +89,20 @@ function MerchantRegister() {
 
         {step === 1 && (
           <div className="register-card">
-            <h2>Tell us about your restaurant</h2>
+            <h2>Create your account</h2>
+
+            <div className="reg-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <label className="reg-label">
+                Email *
+                <input type="email" value={info.email} onChange={e => updateInfo('email', e.target.value)} placeholder="you@restaurant.com" />
+              </label>
+              <label className="reg-label">
+                Password *
+                <input type="password" value={info.password} onChange={e => updateInfo('password', e.target.value)} placeholder="At least 6 characters" />
+              </label>
+            </div>
+
+            <h2 style={{ marginTop: '1rem' }}>Tell us about your restaurant</h2>
 
             <label className="reg-label">
               Restaurant Name *

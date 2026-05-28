@@ -4,6 +4,9 @@ const path = require('path');
 const db = require('./database');
 const { v4: uuidv4 } = require('uuid');
 const agent = require('./agent');
+const sms = require('./sms');
+const payments = require('./payments');
+const auth = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -13,6 +16,63 @@ app.use(express.json());
 
 // Serve static frontend in production
 app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+// --- Auth routes -----------------------------------------------------------
+
+app.post('/api/auth/register', (req, res) => {
+  const { email, password, restaurantId } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  const result = auth.registerMerchant(email, password, restaurantId || null);
+  if (result.error) return res.status(409).json({ error: result.error });
+  res.status(201).json(result);
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const result = auth.loginMerchant(email, password);
+  if (result.error) return res.status(401).json({ error: result.error });
+  res.json(result);
+});
+
+app.get('/api/auth/me', auth.authMiddleware, (req, res) => {
+  const merchant = db.prepare('SELECT id, email, restaurant_id FROM merchants WHERE id = ?').get(req.merchant.id);
+  if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
+  res.json(merchant);
+});
+
+// --- Payment routes --------------------------------------------------------
+
+app.post('/api/payments/create', async (req, res) => {
+  const { orderId, amount } = req.body;
+  if (!orderId || !amount) return res.status(400).json({ error: 'orderId and amount required' });
+
+  const result = await payments.createPaymentIntent(amount, { orderId });
+  if (!result.success) return res.status(500).json({ error: result.error });
+
+  const paymentId = uuidv4();
+  db.prepare('INSERT INTO payments (id, order_id, stripe_payment_intent, amount_cents, status) VALUES (?, ?, ?, ?, ?)').run(
+    paymentId, orderId, result.paymentIntentId, result.amount, 'pending',
+  );
+
+  res.json({ paymentId, ...result });
+});
+
+app.post('/api/payments/confirm', async (req, res) => {
+  const { paymentId, paymentIntentId } = req.body;
+
+  const result = await payments.confirmPayment(paymentIntentId);
+  if (result.success) {
+    db.prepare('UPDATE payments SET status = ? WHERE id = ?').run('succeeded', paymentId);
+    const payment = db.prepare('SELECT order_id FROM payments WHERE id = ?').get(paymentId);
+    if (payment) {
+      db.prepare("UPDATE orders SET payment_status = 'paid', payment_id = ? WHERE id = ?").run(paymentId, payment.order_id);
+    }
+  }
+
+  res.json(result);
+});
 
 // --- API Routes ---
 
@@ -141,6 +201,16 @@ app.post('/api/orders', (req, res) => {
     initialStatus,
   );
 
+  // Send SMS for pickup orders
+  if (type === 'pickup' && customer_phone) {
+    sms.notifyOrderPlaced({
+      customer_name: customer_name || 'there',
+      customer_phone,
+      restaurant_name: restaurant.name,
+      pickup_code: pickupCode,
+    }).catch(() => {});
+  }
+
   res.status(201).json({
     id: orderId,
     restaurant_id,
@@ -178,8 +248,17 @@ app.patch('/api/orders/:id/status', (req, res) => {
     UPDATE orders SET status = ?, ready_at = ?, picked_up_at = ? WHERE id = ?
   `).run(status, readyAt, pickedUpAt, req.params.id);
 
-  const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+  const updated = db.prepare(`
+    SELECT o.*, r.name as restaurant_name FROM orders o
+    JOIN restaurants r ON o.restaurant_id = r.id WHERE o.id = ?
+  `).get(req.params.id);
   updated.items = JSON.parse(updated.items);
+
+  // Send SMS when order is ready
+  if (status === 'ready' && updated.customer_phone) {
+    sms.notifyOrderReady(updated).catch(() => {});
+  }
+
   res.json(updated);
 });
 
@@ -282,6 +361,14 @@ app.post('/api/agent/message', (req, res) => {
     session.orderId = orderId;
     session.pickupCode = pickupCode;
 
+    // Send SMS confirmation
+    sms.notifyOrderPlaced({
+      customer_name: session.name,
+      customer_phone: session.phone,
+      restaurant_name: session.restaurant.name,
+      pickup_code: pickupCode,
+    }).catch(() => {});
+
     return res.json({
       reply:
         `Awesome, you're all set ${session.name}! Your pickup code is ${pickupCode.split('').join(' ')}. ` +
@@ -351,6 +438,7 @@ app.post('/api/merchants/register', (req, res) => {
     name, cuisine, description, address, image,
     delivery_time, delivery_fee, min_order,
     greeting, pickup_instructions, menuItems,
+    email, password,
   } = req.body;
 
   if (!name || !cuisine) {
@@ -404,9 +492,20 @@ app.post('/api/merchants/register', (req, res) => {
   const restaurant = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(restaurantId);
   const items = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ?').all(restaurantId);
 
+  // Create merchant account if email + password provided
+  let authResult = null;
+  if (email && password) {
+    authResult = auth.registerMerchant(email, password, restaurantId);
+    if (authResult.error) {
+      return res.status(409).json({ error: authResult.error });
+    }
+  }
+
   res.status(201).json({
     restaurant,
     menuItems: items,
+    merchant: authResult?.merchant || null,
+    token: authResult?.token || null,
     links: {
       kiosk: `/kiosk/${restaurantId}`,
       admin: `/admin/${restaurantId}`,
