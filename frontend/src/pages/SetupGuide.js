@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import QRLib from 'qrcode';
+import QRCode from '../components/QRCode';
 
 function SetupGuide() {
   const { id } = useParams();
@@ -19,6 +21,35 @@ function SetupGuide() {
     navigator.clipboard?.writeText(url);
     setCopied(label);
     setTimeout(() => setCopied(''), 2000);
+  };
+
+  const orderUrl = `${baseUrl}/restaurant/${id}`;
+
+  // Open a printable page with large QR signs (order-on-phone + kiosk)
+  const printSigns = async () => {
+    const qrData = await QRLib.toDataURL(orderUrl, { width: 480, margin: 1 });
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(`
+      <html><head><title>App-Thru QR Signs — ${restaurant.name}</title>
+      <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 0; }
+        .sign { page-break-after: always; padding: 60px 20px; }
+        h1 { font-size: 42px; margin: 10px 0; }
+        p { font-size: 22px; color: #444; margin: 8px 0; }
+        img { width: 380px; height: 380px; margin: 24px 0; }
+        .small { font-size: 15px; color: #888; }
+      </style></head><body>
+        <div class="sign">
+          <h1>${restaurant.name}</h1>
+          <p><strong>Skip the line — order from your phone</strong></p>
+          <img src="${qrData}" alt="QR" />
+          <p>Scan, order, and we'll text you when it's ready.</p>
+          <p class="small">${orderUrl}</p>
+        </div>
+      </body></html>`);
+    w.document.close();
+    w.onload = () => w.print();
   };
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
@@ -58,6 +89,25 @@ function SetupGuide() {
           ))}
         </div>
       </div>
+
+      <div className="setup-qr">
+        <h2>Scan-to-Order QR Signs</h2>
+        <p>Print these and put them on your door, tables, and counter. Customers scan and order from their phone — no app download.</p>
+        <div className="setup-qr-row">
+          <div className="setup-qr-card">
+            <QRCode value={orderUrl} size={170} />
+            <strong>Order on your phone</strong>
+            <code>{orderUrl}</code>
+          </div>
+          <div className="setup-qr-card">
+            <QRCode value={`${baseUrl}/kiosk/${id}`} size={170} />
+            <strong>Kiosk screen link</strong>
+            <code>{`${baseUrl}/kiosk/${id}`}</code>
+          </div>
+        </div>
+        <button className="btn-primary" onClick={printSigns}>🖨️ Print QR signs</button>
+      </div>
+
 
       <div className="setup-steps">
         <h2>Setup Your Hardware</h2>

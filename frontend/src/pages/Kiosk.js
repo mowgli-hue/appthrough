@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import QRCode from '../components/QRCode';
 import { useParams } from 'react-router-dom';
 
 function getSpeechRecognition() {
@@ -351,6 +352,12 @@ function Kiosk() {
                 <span>🎤 Voice ordering</span>
                 <span>📱 Get notified</span>
                 <span>💳 Tap to pay</span>
+              </div>
+
+              {/* Or order on your own phone */}
+              <div className="kiosk-idle-qr" onClick={e => e.stopPropagation()}>
+                <QRCode value={`${window.location.origin}/restaurant/${restaurantId}`} size={110} />
+                <span>Or scan to order<br />on your phone</span>
               </div>
 
               {/* Slide dots */}

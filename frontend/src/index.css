@@ -3640,3 +3640,89 @@ img {
   justify-content: center;
   flex-wrap: wrap;
 }
+
+/* --- Kitchen new-order ring / QR signs (added for pilot) --- */
+.kitchen-sound-toggle {
+  margin-top: 12px;
+  padding: 10px 18px;
+  border-radius: 24px;
+  border: 2px solid #e2e8f0;
+  background: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #555;
+}
+.kitchen-sound-toggle.on {
+  background: #e6f9ee;
+  border-color: #2ecc71;
+  color: #1a7a43;
+}
+.kitchen-card-new {
+  animation: kitchenFlash 1s ease-in-out infinite;
+  border: 3px solid #e67e22 !important;
+}
+@keyframes kitchenFlash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(230, 126, 34, 0.55); }
+  50% { box-shadow: 0 0 0 14px rgba(230, 126, 34, 0); }
+}
+.kitchen-new-badge {
+  background: #e67e22;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  letter-spacing: 0.03em;
+}
+.setup-qr {
+  margin: 32px 0;
+  text-align: center;
+}
+.setup-qr > p {
+  color: #666;
+  max-width: 560px;
+  margin: 8px auto 20px;
+}
+.setup-qr-row {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.setup-qr-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.setup-qr-card code {
+  font-size: 0.75rem;
+  color: #888;
+  word-break: break-all;
+  max-width: 220px;
+}
+.kiosk-idle-qr {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+  padding: 10px 16px;
+  margin-top: 18px;
+  color: #1a1a2e;
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  cursor: default;
+}
+.kiosk-idle-qr canvas {
+  border-radius: 6px;
+}
