@@ -7,6 +7,7 @@ const agent = require('./agent');
 const sms = require('./sms');
 const payments = require('./payments');
 const auth = require('./auth');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,12 +15,47 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Behind a reverse proxy (Docker/hosted), trust the first hop for client IPs
+app.set('trust proxy', 1);
+
+// --- Rate limiting ----------------------------------------------------------
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later' },
+});
+const orderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many orders from this device, please try again later' },
+});
+app.use('/api/', apiLimiter);
+
+// Ensure the authenticated merchant owns the restaurant in :id
+function requireRestaurantOwnership(req, res, next) {
+  if (!req.merchant || req.merchant.restaurantId !== req.params.id) {
+    return res.status(403).json({ error: 'You do not have access to this restaurant' });
+  }
+  next();
+}
+
 // Serve static frontend in production
 app.use(express.static(path.join(__dirname, '../frontend/build')));
 
 // --- Auth routes -----------------------------------------------------------
 
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', authLimiter, (req, res) => {
   const { email, password, restaurantId } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
@@ -28,7 +64,7 @@ app.post('/api/auth/register', (req, res) => {
   res.status(201).json(result);
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', authLimiter, (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   const result = auth.loginMerchant(email, password);
@@ -154,7 +190,7 @@ function generatePickupCode() {
 }
 
 // Create an order (delivery OR walk-up pickup)
-app.post('/api/orders', (req, res) => {
+app.post('/api/orders', orderLimiter, (req, res) => {
   const {
     restaurant_id,
     items,
@@ -230,7 +266,7 @@ app.post('/api/orders', (req, res) => {
 });
 
 // Update order status (e.g. staff marking as ready / picked up)
-app.patch('/api/orders/:id/status', (req, res) => {
+app.patch('/api/orders/:id/status', auth.authMiddleware, (req, res) => {
   const { status } = req.body;
   const allowed = ['preparing', 'ready', 'picked_up', 'confirmed', 'out_for_delivery', 'delivered', 'cancelled'];
   if (!allowed.includes(status)) {
@@ -239,6 +275,9 @@ app.patch('/api/orders/:id/status', (req, res) => {
 
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.restaurant_id !== req.merchant.restaurantId) {
+    return res.status(403).json({ error: 'You do not have access to this order' });
+  }
 
   const now = new Date().toISOString();
   const readyAt = status === 'ready' ? now : order.ready_at;
@@ -263,14 +302,15 @@ app.patch('/api/orders/:id/status', (req, res) => {
 });
 
 // Get all pickup orders (for staff / kitchen view)
-app.get('/api/pickup-orders', (req, res) => {
+app.get('/api/pickup-orders', auth.authMiddleware, (req, res) => {
   const orders = db.prepare(`
     SELECT o.*, r.name as restaurant_name
     FROM orders o
     JOIN restaurants r ON o.restaurant_id = r.id
     WHERE o.order_type = 'pickup' AND o.status != 'picked_up' AND o.status != 'cancelled'
+      AND o.restaurant_id = ?
     ORDER BY o.created_at ASC
-  `).all();
+  `).all(req.merchant.restaurantId);
   orders.forEach(o => { o.items = JSON.parse(o.items); });
   res.json(orders);
 });
@@ -406,7 +446,7 @@ app.get('/api/restaurants/:id/kiosk', (req, res) => {
 });
 
 // Update restaurant drive-thru config (admin onboarding)
-app.patch('/api/restaurants/:id/config', (req, res) => {
+app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {
   const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'Restaurant not found' });
 
@@ -433,7 +473,7 @@ app.patch('/api/restaurants/:id/config', (req, res) => {
 // --- Merchant registration (like Uber Eats / DoorDash merchant signup) ----
 
 // Register a new restaurant + menu
-app.post('/api/merchants/register', (req, res) => {
+app.post('/api/merchants/register', authLimiter, (req, res) => {
   const {
     name, cuisine, description, address, image,
     delivery_time, delivery_fee, min_order,
@@ -515,7 +555,7 @@ app.post('/api/merchants/register', (req, res) => {
 });
 
 // Update menu items for a restaurant
-app.put('/api/restaurants/:id/menu', (req, res) => {
+app.put('/api/restaurants/:id/menu', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {
   const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'Restaurant not found' });
 
@@ -546,7 +586,7 @@ app.put('/api/restaurants/:id/menu', (req, res) => {
 });
 
 // Get merchant dashboard stats
-app.get('/api/merchants/:id/stats', (req, res) => {
+app.get('/api/merchants/:id/stats', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {
   const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'Restaurant not found' });
 

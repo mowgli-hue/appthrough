@@ -1,18 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { authHeaders } from '../utils/auth';
 
 function MerchantDashboard() {
   const { id } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [unauthorized, setUnauthorized] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/merchants/${id}/stats`)
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); })
+    fetch(`/api/merchants/${id}/stats`, { headers: { ...authHeaders() } })
+      .then(r => {
+        if (r.status === 401 || r.status === 403) {
+          setUnauthorized(true);
+          return null;
+        }
+        return r.json();
+      })
+      .then(d => { if (d) setData(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, [id]);
 
+  if (unauthorized) {
+    return (
+      <div className="error-page">
+        <h2>Sign in required</h2>
+        <p>You need to be signed in as this restaurant's merchant to view the dashboard.</p>
+        <Link to="/login" className="btn-primary">Merchant login</Link>
+      </div>
+    );
+  }
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
   if (!data?.restaurant) return <div className="error-page"><h2>Restaurant not found</h2></div>;
 

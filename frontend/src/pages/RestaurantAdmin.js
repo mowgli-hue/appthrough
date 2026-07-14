@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { authHeaders } from '../utils/auth';
 
 function RestaurantAdmin() {
   const { id } = useParams();
@@ -7,6 +8,7 @@ function RestaurantAdmin() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [form, setForm] = useState({
     greeting: '',
     pickup_instructions: '',
@@ -32,12 +34,21 @@ function RestaurantAdmin() {
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
-    await fetch(`/api/restaurants/${id}/config`, {
+    setSaveError('');
+    const res = await fetch(`/api/restaurants/${id}/config`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(form),
     });
     setSaving(false);
+    if (res.status === 401 || res.status === 403) {
+      setSaveError('You must be signed in as this restaurant\'s merchant to save changes.');
+      return;
+    }
+    if (!res.ok) {
+      setSaveError('Could not save changes. Please try again.');
+      return;
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -168,6 +179,7 @@ function RestaurantAdmin() {
           {saving ? 'Saving...' : 'Save Configuration'}
         </button>
         {saved && <span className="admin-saved">Saved!</span>}
+        {saveError && <span style={{ color: '#e53e3e', marginLeft: 12 }}>{saveError}</span>}
       </div>
     </div>
   );

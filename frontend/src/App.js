@@ -15,6 +15,7 @@ import Kiosk from './pages/Kiosk';
 import KioskSelect from './pages/KioskSelect';
 import RestaurantAdmin from './pages/RestaurantAdmin';
 import MerchantRegister from './pages/MerchantRegister';
+import MerchantLogin from './pages/MerchantLogin';
 import MerchantDashboard from './pages/MerchantDashboard';
 import SetupGuide from './pages/SetupGuide';
 
@@ -40,6 +41,7 @@ function App() {
               <Route path="/kiosk/:restaurantId" element={<Kiosk />} />
               <Route path="/admin/:id" element={<RestaurantAdmin />} />
               <Route path="/register" element={<MerchantRegister />} />
+              <Route path="/login" element={<MerchantLogin />} />
               <Route path="/merchant/:id" element={<MerchantDashboard />} />
               <Route path="/setup/:id" element={<SetupGuide />} />
             </Routes>

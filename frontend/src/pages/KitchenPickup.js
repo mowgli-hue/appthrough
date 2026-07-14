@@ -1,13 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { authHeaders, getToken } from '../utils/auth';
 
 function KitchenPickup() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [unauthorized, setUnauthorized] = useState(!getToken());
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/pickup-orders');
+      const res = await fetch('/api/pickup-orders', { headers: { ...authHeaders() } });
+      if (res.status === 401 || res.status === 403) {
+        setUnauthorized(true);
+        return;
+      }
       const data = await res.json();
+      setUnauthorized(false);
       setOrders(data);
     } catch {
       /* ignore */
@@ -25,11 +33,23 @@ function KitchenPickup() {
   const updateStatus = async (orderId, status) => {
     await fetch(`/api/orders/${orderId}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ status }),
     });
     load();
   };
+
+  if (unauthorized) {
+    return (
+      <div className="kitchen-page">
+        <div className="kitchen-header">
+          <h1>Kitchen — Pickup Orders</h1>
+        </div>
+        <p>You need to be signed in as this restaurant's merchant to view the kitchen queue.</p>
+        <Link to="/login" className="btn-primary">Merchant login</Link>
+      </div>
+    );
+  }
 
   if (loading) {
     return <div className="loading"><div className="spinner"></div></div>;
