@@ -35,7 +35,7 @@ function Navbar({ onCartClick }) {
 
         <div className="navbar-actions">
           <Link to="/register" className="nav-link nav-link-register">List Your Restaurant</Link>
-          <Link to="/voice" className="nav-link nav-link-highlight">🎙️ Drive-Thru</Link>
+          <Link to="/voice" className="nav-link nav-link-highlight">🎙️ Voice Order</Link>
           <Link to="/orders" className="nav-link">Orders</Link>
           <button className="cart-button" onClick={onCartClick}>
             <span className="cart-icon">🛒</span>

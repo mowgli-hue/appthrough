@@ -63,7 +63,7 @@ function RestaurantAdmin() {
     <div className="admin-page">
       <div className="admin-header">
         <div>
-          <h1>Configure Drive-Thru</h1>
+          <h1>Configure App-Thru</h1>
           <p>{restaurant.name}</p>
         </div>
         <Link to={`/kiosk/${id}`} className="btn-primary" target="_blank">
@@ -76,7 +76,7 @@ function RestaurantAdmin() {
           <h3>General Settings</h3>
 
           <label className="admin-label">
-            Drive-Thru Kiosk
+            Walk-up Kiosk
             <div className="admin-toggle-row">
               <button
                 className={`admin-toggle ${form.drive_thru_enabled ? 'on' : ''}`}

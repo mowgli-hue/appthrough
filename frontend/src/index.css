@@ -3759,3 +3759,125 @@ img {
 .menu-import-file { cursor: pointer; }
 .menu-import-ok { color: #1a7a43; margin-top: 10px; font-weight: 600; }
 .menu-import-err { color: #c0392b; margin-top: 10px; font-weight: 600; }
+
+/* ===== Mobile polish pass ===== */
+@media (max-width: 768px) {
+  /* Navbar: keep brand + actions on one tidy row */
+  .navbar-container {
+    gap: 8px;
+  }
+  .navbar-actions {
+    gap: 6px;
+  }
+  .nav-link,
+  .nav-link-highlight,
+  .nav-link-register {
+    padding: 0.35rem 0.55rem;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+  /* Comfortable tap targets everywhere */
+  button,
+  .btn-primary,
+  .btn-secondary {
+    min-height: 44px;
+  }
+  /* Voice ordering page */
+  .voice-page {
+    padding: 16px 12px;
+  }
+  /* Registration flow */
+  .register-container {
+    padding: 0 14px;
+  }
+  .register-card {
+    padding: 18px 16px;
+  }
+  .register-steps {
+    font-size: 0.78rem;
+    gap: 6px;
+  }
+  .reg-row {
+    grid-template-columns: 1fr !important;
+  }
+  .menu-import-row {
+    flex-direction: column;
+  }
+  .menu-import-row .btn-primary {
+    width: 100%;
+  }
+  .menu-builder-row {
+    flex-wrap: wrap;
+  }
+  /* Kitchen queue on a tablet/phone */
+  .kitchen-grid {
+    grid-template-columns: 1fr;
+  }
+  /* Setup guide */
+  .setup-url-card code {
+    font-size: 0.68rem;
+    word-break: break-all;
+  }
+  .setup-qr-row {
+    flex-direction: column;
+    align-items: center;
+  }
+  /* Order tracking */
+  .confirmation-page,
+  .setup-page,
+  .merchant-page {
+    padding: 16px 12px;
+  }
+  .pickup-code,
+  .kitchen-code {
+    font-size: 1.6rem;
+    letter-spacing: 0.12em;
+  }
+  /* Cards & modals shouldn't touch screen edges */
+  .cart-sidebar {
+    width: 100vw;
+    max-width: 100vw;
+  }
+}
+
+@media (max-width: 480px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  /* Compact nav: icon-only highlight links */
+  .nav-link-register {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+  }
+  .hero h1 {
+    font-size: 1.6rem;
+    line-height: 1.2;
+  }
+  .hero p {
+    font-size: 0.92rem;
+  }
+  .restaurant-card img,
+  .restaurant-card-image {
+    height: 160px;
+  }
+  .menu-item-card {
+    padding: 12px;
+  }
+  /* Forms: bigger inputs, no iOS zoom (16px min font) */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  /* Sticky order summary CTA feel on checkout */
+  .checkout-submit,
+  .checkout-container .btn-primary {
+    width: 100%;
+  }
+  /* Voice page orb smaller so chat fits */
+  .voice-orb {
+    width: 96px;
+    height: 96px;
+    font-size: 2.2rem;
+  }
+}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from '../components/QRCode';
+import { warmVoices, tuneUtterance } from '../utils/tts';
 import { useParams } from 'react-router-dom';
 
 function getSpeechRecognition() {
@@ -156,14 +157,7 @@ function Kiosk() {
       return;
     }
     window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 1.02;
-    const voices = window.speechSynthesis.getVoices();
-    const preferred =
-      voices.find(v => /en-?US/i.test(v.lang) && /female|samantha|google/i.test(v.name)) ||
-      voices.find(v => /en-?US/i.test(v.lang)) ||
-      voices[0];
-    if (preferred) utter.voice = preferred;
+    const utter = tuneUtterance(new SpeechSynthesisUtterance(text));
     utter.onstart = () => setSpeaking(true);
     utter.onend = () => {
       setSpeaking(false);
@@ -177,6 +171,7 @@ function Kiosk() {
   }, [autoListen]);
 
   useEffect(() => {
+    warmVoices();
     if ('speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = () => {};
     }

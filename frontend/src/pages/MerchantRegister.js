@@ -133,7 +133,7 @@ function MerchantRegister() {
       <div className="register-container">
         <div className="register-header">
           <h1>Join App-Thru</h1>
-          <p>Set up your restaurant's drive-thru kiosk in minutes. No hardware needed — just a tablet and a dream.</p>
+          <p>Set up walk-up ordering for your restaurant in minutes. No hardware needed — just a tablet and a dream.</p>
         </div>
 
         <div className="register-steps">
@@ -202,7 +202,7 @@ function MerchantRegister() {
               </label>
             </div>
 
-            <h3 style={{ marginTop: '1rem' }}>Drive-Thru Settings (optional)</h3>
+            <h3 style={{ marginTop: '1rem' }}>Kiosk & Greeting Settings (optional)</h3>
 
             <label className="reg-label">
               AI Greeting
@@ -370,7 +370,7 @@ function MerchantRegister() {
             <div className="reg-actions">
               <button className="btn-secondary" onClick={() => setStep(2)}>← Back</button>
               <button className="btn-primary btn-large" onClick={handleSubmit} disabled={submitting}>
-                {submitting ? 'Setting up...' : '🚀 Launch My Drive-Thru'}
+                {submitting ? 'Setting up...' : '🚀 Launch on App-Thru'}
               </button>
             </div>
           </div>

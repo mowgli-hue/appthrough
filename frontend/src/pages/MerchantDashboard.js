@@ -75,7 +75,7 @@ function MerchantDashboard() {
 
       <div className="merchant-grid">
         <div className="merchant-card">
-          <h3>Your Drive-Thru Links</h3>
+          <h3>Your App-Thru Links</h3>
           <p className="merchant-hint">Share these or open them on your devices.</p>
 
           <div className="merchant-links">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { warmVoices, tuneUtterance } from '../utils/tts';
 import { useNavigate } from 'react-router-dom';
 
 // Drive-through style voice ordering: AI agent speaks, customer speaks back.
@@ -15,6 +16,7 @@ function getSpeechRecognition() {
 }
 
 function VoiceOrder() {
+  React.useEffect(() => { warmVoices(); }, []);
   const navigate = useNavigate();
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]); // { role: 'agent'|'you', text }
@@ -30,16 +32,7 @@ function VoiceOrder() {
   const speak = useCallback((text) => {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 1.02;
-    utter.pitch = 1.0;
-    // Prefer a natural-sounding English voice if available.
-    const voices = window.speechSynthesis.getVoices();
-    const preferred =
-      voices.find(v => /en-?US/i.test(v.lang) && /female|samantha|google/i.test(v.name)) ||
-      voices.find(v => /en-?US/i.test(v.lang)) ||
-      voices[0];
-    if (preferred) utter.voice = preferred;
+    const utter = tuneUtterance(new SpeechSynthesisUtterance(text));
     utter.onstart = () => setSpeaking(true);
     utter.onend = () => setSpeaking(false);
     utter.onerror = () => setSpeaking(false);
@@ -135,7 +128,7 @@ function VoiceOrder() {
   return (
     <div className="voice-page">
       <div className="voice-header">
-        <h1>🎙️ App-Thru Drive-Thru</h1>
+        <h1>🎙️ Order by Voice</h1>
         <p>Talk to our AI order assistant — just like pulling up to the speaker.</p>
       </div>
 
