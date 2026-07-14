@@ -8,6 +8,7 @@ const sms = require('./sms');
 const payments = require('./payments');
 const auth = require('./auth');
 const rateLimit = require('express-rate-limit');
+const menuImport = require('./menu-import');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -39,6 +40,13 @@ const orderLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many orders from this device, please try again later' },
+});
+const importLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many import attempts, please try again later' },
 });
 app.use('/api/', apiLimiter);
 
@@ -468,6 +476,37 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
 
   const updated = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
   res.json(updated);
+});
+
+// --- Menu import (pre-fills the menu editor during registration) ----------
+
+// Import from a public menu web page (or a direct PDF link)
+app.post('/api/menu-import/url', importLimiter, async (req, res) => {
+  const { url } = req.body || {};
+  if (!url) return res.status(400).json({ error: 'url is required' });
+  try {
+    const result = await menuImport.importFromUrl(url);
+    if (!result.items.length) {
+      return res.status(422).json({ error: 'No menu items with prices found on that page. Try a page that lists dishes with prices, or upload a PDF.' });
+    }
+    res.json(result);
+  } catch (e) {
+    res.status(422).json({ error: e.name === 'AbortError' ? 'That page took too long to load' : e.message });
+  }
+});
+
+// Import from an uploaded PDF (raw application/pdf body, max 15 MB)
+app.post('/api/menu-import/pdf', importLimiter, express.raw({ type: 'application/pdf', limit: '15mb' }), async (req, res) => {
+  if (!req.body || !req.body.length) return res.status(400).json({ error: 'Send the PDF file as the request body with Content-Type: application/pdf' });
+  try {
+    const result = await menuImport.importFromPdf(req.body);
+    if (!result.items.length) {
+      return res.status(422).json({ error: 'No menu items with prices found in that PDF. If it\'s a scanned image, type the menu in manually for now.' });
+    }
+    res.json(result);
+  } catch (e) {
+    res.status(422).json({ error: 'Could not read that PDF: ' + e.message });
+  }
 });
 
 // --- Merchant registration (like Uber Eats / DoorDash merchant signup) ----

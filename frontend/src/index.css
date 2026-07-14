@@ -3726,3 +3726,36 @@ img {
 .kiosk-idle-qr canvas {
   border-radius: 6px;
 }
+
+/* --- Menu import panel --- */
+.menu-import {
+  background: #f7f9fc;
+  border: 1px dashed #b8c4d8;
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+.menu-import h3 { margin: 0 0 4px; }
+.menu-import-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+.menu-import-row input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #d5dce8;
+  border-radius: 10px;
+  font-size: 0.95rem;
+}
+.menu-import-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  color: #888;
+  font-size: 0.85rem;
+}
+.menu-import-file { cursor: pointer; }
+.menu-import-ok { color: #1a7a43; margin-top: 10px; font-weight: 600; }
+.menu-import-err { color: #c0392b; margin-top: 10px; font-weight: 600; }

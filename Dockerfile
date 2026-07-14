@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install backend deps
 COPY backend/package*.json ./backend/
-RUN cd backend && npm ci --omit=dev
+RUN cd backend && npm ci --omit=dev --omit=optional
 
 # Install frontend deps and build
 COPY frontend/package*.json ./frontend/

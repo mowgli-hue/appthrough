@@ -25,6 +25,61 @@ function MerchantRegister() {
   const [menuItems, setMenuItems] = useState([
     { ...EMPTY_ITEM },
   ]);
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState(null); // { type: 'ok'|'err', text }
+
+  const applyImportedItems = (items) => {
+    setMenuItems(existing => {
+      const kept = existing.filter(i => i.name.trim() && parseFloat(i.price) > 0);
+      const have = new Set(kept.map(i => i.name.trim().toLowerCase()));
+      const added = items
+        .filter(i => !have.has(i.name.trim().toLowerCase()))
+        .map(i => ({ ...EMPTY_ITEM, ...i, price: String(i.price) }));
+      return [...kept, ...added];
+    });
+    setImportMsg({ type: 'ok', text: `Imported ${items.length} items — review names, prices, and categories below, then remove anything wrong.` });
+  };
+
+  const importFromLink = async () => {
+    if (!importUrl.trim()) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const res = await fetch('/api/menu-import/url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: importUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Import failed');
+      applyImportedItems(data.items);
+    } catch (e) {
+      setImportMsg({ type: 'err', text: e.message });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const importFromPdf = async (file) => {
+    if (!file) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const res = await fetch('/api/menu-import/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/pdf' },
+        body: file,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Import failed');
+      applyImportedItems(data.items);
+    } catch (e) {
+      setImportMsg({ type: 'err', text: e.message });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const updateInfo = (key, val) => setInfo(f => ({ ...f, [key]: val }));
 
@@ -172,6 +227,39 @@ function MerchantRegister() {
           <div className="register-card">
             <h2>Build your menu</h2>
             <p className="reg-hint">Add the items customers can order from your kiosk. You can edit these anytime later.</p>
+
+            <div className="menu-import">
+              <h3>⚡ Import your existing menu</h3>
+              <p className="reg-hint">Paste a link to your menu page (or a PDF link), or upload a menu PDF — we'll pull in the items automatically so you don't have to type them.</p>
+              <div className="menu-import-row">
+                <input
+                  type="url"
+                  placeholder="https://your-restaurant.com/menu"
+                  value={importUrl}
+                  onChange={e => setImportUrl(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && importFromLink()}
+                />
+                <button className="btn-primary" onClick={importFromLink} disabled={importing || !importUrl.trim()}>
+                  {importing ? 'Importing…' : 'Fetch menu'}
+                </button>
+              </div>
+              <div className="menu-import-or">
+                <span>or</span>
+                <label className="btn-secondary menu-import-file">
+                  📄 Upload menu PDF
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    style={{ display: 'none' }}
+                    disabled={importing}
+                    onChange={e => { importFromPdf(e.target.files?.[0]); e.target.value = ''; }}
+                  />
+                </label>
+              </div>
+              {importMsg && (
+                <p className={importMsg.type === 'ok' ? 'menu-import-ok' : 'menu-import-err'}>{importMsg.text}</p>
+              )}
+            </div>
 
             <div className="menu-builder">
               {menuItems.map((item, i) => (
