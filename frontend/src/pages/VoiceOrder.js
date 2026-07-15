@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { warmVoices, tuneUtterance } from '../utils/tts';
+import { getVoiceStatus, speakServer } from '../utils/voiceClient';
 import { useNavigate } from 'react-router-dom';
 
 // Drive-through style voice ordering: AI agent speaks, customer speaks back.
@@ -17,6 +18,8 @@ function getSpeechRecognition() {
 
 function VoiceOrder() {
   React.useEffect(() => { warmVoices(); }, []);
+  const serverTtsRef = useRef(false);
+  React.useEffect(() => { getVoiceStatus().then(v => { serverTtsRef.current = v.tts; }); }, []);
   const navigate = useNavigate();
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]); // { role: 'agent'|'you', text }
@@ -30,13 +33,21 @@ function VoiceOrder() {
   const messagesEndRef = useRef(null);
 
   const speak = useCallback((text) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utter = tuneUtterance(new SpeechSynthesisUtterance(text));
-    utter.onstart = () => setSpeaking(true);
-    utter.onend = () => setSpeaking(false);
-    utter.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(utter);
+    const browserSpeak = () => {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utter = tuneUtterance(new SpeechSynthesisUtterance(text));
+      utter.onstart = () => setSpeaking(true);
+      utter.onend = () => setSpeaking(false);
+      utter.onerror = () => setSpeaking(false);
+      window.speechSynthesis.speak(utter);
+    };
+    if (serverTtsRef.current) {
+      speakServer(text, { onStart: () => setSpeaking(true), onEnd: () => setSpeaking(false) })
+        .catch(() => { setSpeaking(false); browserSpeak(); });
+      return;
+    }
+    browserSpeak();
   }, []);
 
   // Load voices (some browsers load them async).

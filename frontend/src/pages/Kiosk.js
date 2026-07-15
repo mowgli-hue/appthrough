@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from '../components/QRCode';
 import { warmVoices, tuneUtterance } from '../utils/tts';
+import { getVoiceStatus, speakServer, listenServer } from '../utils/voiceClient';
 import { useParams } from 'react-router-dom';
 
 function getSpeechRecognition() {
@@ -106,11 +107,16 @@ function Kiosk() {
   const [slideIndex, setSlideIndex] = useState(0);
   const [menuItems, setMenuItems] = useState([]);
   const recogRef = useRef(null);
+  const serverVoiceRef = useRef({ tts: false, stt: false });
   const messagesEndRef = useRef(null);
   const autoListenRef = useRef(true);
   const sessionIdRef = useRef(null);
 
   useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
+
+  useEffect(() => {
+    getVoiceStatus().then(v => { serverVoiceRef.current = v; });
+  }, []);
 
   useEffect(() => {
     fetch(`/api/restaurants/${restaurantId}/kiosk`)
@@ -134,8 +140,26 @@ function Kiosk() {
   // Auto-listen: start mic after agent finishes speaking
   const autoListen = useCallback(() => {
     if (!autoListenRef.current || !sessionIdRef.current) return;
-    setTimeout(() => {
+    setTimeout(async () => {
       if (!sessionIdRef.current) return;
+
+      // Multilingual path: record + server transcription (ElevenLabs Scribe)
+      if (serverVoiceRef.current.stt) {
+        setListening(true);
+        try {
+          const { text } = await listenServer();
+          setListening(false);
+          if (text.trim()) sendToAgentRef.current(text.trim());
+          else if (autoListenRef.current && sessionIdRef.current) autoListen();
+        } catch {
+          setListening(false);
+          // fall through to browser recognition next round
+          serverVoiceRef.current = { ...serverVoiceRef.current, stt: false };
+          autoListen();
+        }
+        return;
+      }
+
       const recog = getSpeechRecognition();
       if (!recog) return;
       recogRef.current = recog;
@@ -152,22 +176,41 @@ function Kiosk() {
   }, []);
 
   const speak = useCallback((text, shouldAutoListen = true) => {
-    if (!('speechSynthesis' in window)) {
-      if (shouldAutoListen) autoListen();
+    const browserSpeak = () => {
+      if (!('speechSynthesis' in window)) {
+        if (shouldAutoListen) autoListen();
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utter = tuneUtterance(new SpeechSynthesisUtterance(text));
+      utter.onstart = () => setSpeaking(true);
+      utter.onend = () => {
+        setSpeaking(false);
+        if (shouldAutoListen) autoListen();
+      };
+      utter.onerror = () => {
+        setSpeaking(false);
+        if (shouldAutoListen) autoListen();
+      };
+      window.speechSynthesis.speak(utter);
+    };
+
+    // Natural multilingual voice (ElevenLabs) when configured on the server
+    if (serverVoiceRef.current.tts) {
+      speakServer(text, {
+        onStart: () => setSpeaking(true),
+        onEnd: () => {
+          setSpeaking(false);
+          if (shouldAutoListen) autoListen();
+        },
+      }).catch(() => {
+        setSpeaking(false);
+        browserSpeak(); // API/autoplay problem — never leave the kiosk mute
+      });
       return;
     }
-    window.speechSynthesis.cancel();
-    const utter = tuneUtterance(new SpeechSynthesisUtterance(text));
-    utter.onstart = () => setSpeaking(true);
-    utter.onend = () => {
-      setSpeaking(false);
-      if (shouldAutoListen) autoListen();
-    };
-    utter.onerror = () => {
-      setSpeaking(false);
-      if (shouldAutoListen) autoListen();
-    };
-    window.speechSynthesis.speak(utter);
+
+    browserSpeak();
   }, [autoListen]);
 
   useEffect(() => {

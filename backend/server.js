@@ -9,6 +9,7 @@ const payments = require('./payments');
 const auth = require('./auth');
 const rateLimit = require('express-rate-limit');
 const menuImport = require('./menu-import');
+const voice = require('./voice');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -476,6 +477,50 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
 
   const updated = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
   res.json(updated);
+});
+
+// --- Natural voice (ElevenLabs) --------------------------------------------
+
+const voiceLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300, // a kiosk conversation makes many short calls
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Voice service is busy, please try again shortly' },
+});
+
+// Lets the kiosk know whether to use natural voice or the browser fallback
+app.get('/api/voice/status', (req, res) => {
+  res.json({ tts: voice.available(), stt: voice.available() });
+});
+
+app.post('/api/voice/tts', voiceLimiter, async (req, res) => {
+  if (!voice.available()) return res.status(503).json({ error: 'Natural voice not configured' });
+  const { text } = req.body || {};
+  if (!text || typeof text !== 'string' || text.length > 600) {
+    return res.status(400).json({ error: 'text (max 600 chars) is required' });
+  }
+  try {
+    const audio = await voice.tts(text);
+    res.set('Content-Type', 'audio/mpeg');
+    res.set('Cache-Control', 'no-store');
+    res.send(audio);
+  } catch (e) {
+    console.error(e.message);
+    res.status(502).json({ error: 'Voice generation failed' });
+  }
+});
+
+app.post('/api/voice/stt', voiceLimiter, express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '10mb' }), async (req, res) => {
+  if (!voice.available()) return res.status(503).json({ error: 'Speech recognition not configured' });
+  if (!req.body || !req.body.length) return res.status(400).json({ error: 'Audio body required' });
+  try {
+    const result = await voice.stt(req.body, req.headers['content-type'] || 'audio/webm');
+    res.json(result);
+  } catch (e) {
+    console.error(e.message);
+    res.status(502).json({ error: 'Speech recognition failed' });
+  }
 });
 
 // --- Menu import (pre-fills the menu editor during registration) ----------
