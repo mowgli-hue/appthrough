@@ -10,6 +10,7 @@ const auth = require('./auth');
 const rateLimit = require('express-rate-limit');
 const menuImport = require('./menu-import');
 const voice = require('./voice');
+const llmAgent = require('./llm-agent');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -379,17 +380,34 @@ app.post('/api/agent/session', (req, res) => {
   const opts = restaurantId ? { restaurantId } : {};
   const session = agent.getSession(sessionId, opts);
   const { reply } = agent.handleTurn(session, '');
+  if (llmAgent.available()) {
+    // Give the LLM the greeting so the conversation has a consistent start
+    session.llmHistory = [
+      { role: 'user', content: '(customer walked up)' },
+      { role: 'assistant', content: JSON.stringify({ say: reply, restaurant_id: session.restaurant?.id || null, items: [], customer_name: null, phone: null, confirmed: false }) },
+    ];
+  }
   res.json({ sessionId, reply, state: publicState(session), kioskMode: session.kioskMode });
 });
 
 // Send a user utterance; get the agent's reply back
-app.post('/api/agent/message', (req, res) => {
+app.post('/api/agent/message', async (req, res) => {
   const { sessionId, message } = req.body;
   if (!sessionId || !agent.sessions.has(sessionId)) {
     return res.status(404).json({ error: 'Unknown session. Start a new one.' });
   }
   const session = agent.getSession(sessionId);
-  const result = agent.handleTurn(session, message || '');
+  let result;
+  if (llmAgent.available()) {
+    try {
+      result = await llmAgent.turn(session, message || '');
+    } catch (e) {
+      console.error('LLM agent failed, using rule-based fallback:', e.message);
+      result = agent.handleTurn(session, message || '');
+    }
+  } else {
+    result = agent.handleTurn(session, message || '');
+  }
 
   // Special sentinel: agent wants to actually place the order now.
   if (result.reply === '__PLACE_ORDER__') {
@@ -418,11 +436,13 @@ app.post('/api/agent/message', (req, res) => {
       pickup_code: pickupCode,
     }).catch(() => {});
 
-    return res.json({
-      reply:
-        `Awesome, you're all set ${session.name}! Your pickup code is ${pickupCode.split('').join(' ')}. ` +
+    const confirmationReply = result.spokenConfirmation
+      ? `${result.spokenConfirmation} Your pickup code is ${pickupCode.split('').join(' ')}.`
+      : `Awesome, you're all set ${session.name}! Your pickup code is ${pickupCode.split('').join(' ')}. ` +
         `We'll send a text to your phone when your food is ready. ` +
-        `Just walk up and show your code. Enjoy!`,
+        `Just walk up and show your code. Enjoy!`;
+    return res.json({
+      reply: confirmationReply,
       state: publicState(session),
       orderId,
       pickupCode,
