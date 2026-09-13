@@ -5,8 +5,8 @@ import { useCart } from '../context/CartContext';
 function Checkout() {
   const { cart, subtotal, tax, clearCart, itemCount } = useCart();
   const navigate = useNavigate();
-  const [orderType, setOrderType] = useState('pickup'); // default to walk-up pickup
-  const [address, setAddress] = useState('');
+  // Walk-up pickup only — App-Thru doesn't do delivery
+  const orderType = 'pickup';
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [placing, setPlacing] = useState(false);
@@ -14,7 +14,7 @@ function Checkout() {
 
   // --- Stripe card payment (enabled when the server has keys configured) ---
   const [stripeReady, setStripeReady] = useState(false);
-  const [payMethod, setPayMethod] = useState('pickup'); // 'card' | 'pickup'
+  const [payMethod, setPayMethod] = useState('pickup'); // becomes 'card' when Stripe loads
   const stripeRef = useRef(null);
   const cardRef = useRef(null);
   const cardMountRef = useRef(null);
@@ -65,21 +65,17 @@ function Checkout() {
     );
   }
 
-  const isPickup = orderType === 'pickup';
-  const effectiveDeliveryFee = isPickup ? 0 : cart.deliveryFee;
+  const isPickup = true;
+  const effectiveDeliveryFee = 0;
   const APPTHRU_FEE = 1.0;
   const effectiveTotal = Math.round((subtotal + effectiveDeliveryFee + tax + APPTHRU_FEE) * 100) / 100;
 
-  const validPhone = (p) => p.replace(/\D/g, '').length >= 7;
+  const validPhone = (p) => p.replace(/\D/g, '').length >= 10;
 
   const handlePlaceOrder = async () => {
     setError('');
-    if (isPickup) {
-      if (!name.trim()) return setError('Please enter your name.');
-      if (!validPhone(phone)) return setError('Please enter a valid phone number.');
-    } else {
-      if (!address.trim()) return setError('Please enter a delivery address.');
-    }
+    if (!name.trim()) return setError('Please enter your name.');
+    if (!validPhone(phone)) return setError('Please enter a valid 10-digit mobile number — we text you when your order is ready.');
 
     setPlacing(true);
     try {
@@ -90,7 +86,7 @@ function Checkout() {
           restaurant_id: cart.restaurantId,
           items: cart.items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
           order_type: orderType,
-          delivery_address: isPickup ? '' : address,
+          delivery_address: '',
           customer_name: name,
           customer_phone: phone,
         }),
@@ -144,67 +140,28 @@ function Checkout() {
           <h1>Checkout</h1>
 
           <div className="checkout-section">
-            <h2>How do you want your order?</h2>
-            <div className="order-type-toggle">
-              <button
-                type="button"
-                className={`order-type-option ${isPickup ? 'active' : ''}`}
-                onClick={() => setOrderType('pickup')}
-              >
-                <span className="ot-icon">🚶</span>
-                <div className="ot-label">
-                  <strong>Walk-up Pickup</strong>
-                  <small>No delivery fee · Get notified when ready</small>
-                </div>
-              </button>
-              <button
-                type="button"
-                className={`order-type-option ${!isPickup ? 'active' : ''}`}
-                onClick={() => setOrderType('delivery')}
-              >
-                <span className="ot-icon">🛵</span>
-                <div className="ot-label">
-                  <strong>Delivery</strong>
-                  <small>Bring it to your door · ${cart.deliveryFee.toFixed(2)} fee</small>
-                </div>
-              </button>
-            </div>
+            <h2>Your Info</h2>
+            <p className="section-hint">
+              Both fields are required — we text your phone the moment your order is ready.
+            </p>
+            <input
+              type="text"
+              className="address-input"
+              placeholder="Your name *"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+            <input
+              type="tel"
+              className="address-input"
+              placeholder="Mobile number * (for the ready text)"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              style={{ marginTop: '0.5rem' }}
+              required
+            />
           </div>
-
-          {isPickup ? (
-            <div className="checkout-section">
-              <h2>Your Info</h2>
-              <p className="section-hint">
-                We'll text &amp; notify you on your phone when your order is ready to pick up.
-              </p>
-              <input
-                type="text"
-                className="address-input"
-                placeholder="Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-              <input
-                type="tel"
-                className="address-input"
-                placeholder="Mobile phone number"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                style={{ marginTop: '0.5rem' }}
-              />
-            </div>
-          ) : (
-            <div className="checkout-section">
-              <h2>Delivery Address</h2>
-              <input
-                type="text"
-                className="address-input"
-                placeholder="Enter your delivery address"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
-            </div>
-          )}
 
           <div className="checkout-section">
             <h2>Order from {cart.restaurantName}</h2>
@@ -227,24 +184,13 @@ function Checkout() {
             <h2>Order Summary</h2>
             {stripeReady && (
               <div className="pay-method">
-                <label className={payMethod === 'card' ? 'pay-option selected' : 'pay-option'}>
-                  <input type="radio" name="paymethod" checked={payMethod === 'card'} onChange={() => setPayMethod('card')} />
-                  💳 Pay now by card
-                </label>
-                <label className={payMethod === 'pickup' ? 'pay-option selected' : 'pay-option'}>
-                  <input type="radio" name="paymethod" checked={payMethod === 'pickup'} onChange={() => setPayMethod('pickup')} />
-                  🏪 Pay at pickup
-                </label>
-                {payMethod === 'card' && <div className="card-element-box" ref={cardMountRef} />}
+                <div className="pay-option selected">💳 Card payment</div>
+                <div className="card-element-box" ref={cardMountRef} />
               </div>
             )}
             <div className="summary-row">
               <span>Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>
-            </div>
-            <div className="summary-row">
-              <span>{isPickup ? 'Pickup' : 'Delivery'} Fee</span>
-              <span>{isPickup ? 'FREE' : `$${cart.deliveryFee.toFixed(2)}`}</span>
             </div>
             <div className="summary-row">
               <span>Tax</span>
