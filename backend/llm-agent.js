@@ -13,7 +13,7 @@ function available() {
 
 function menuLines(restaurantId) {
   const items = db.prepare(
-    'SELECT name, price, category, description, popular FROM menu_items WHERE restaurant_id = ? ORDER BY category, name'
+    'SELECT name, price, category, description, popular FROM menu_items WHERE restaurant_id = ? AND available != 0 ORDER BY category, name'
   ).all(restaurantId);
   return items.map(i =>
     `- ${i.name} — $${i.price.toFixed(2)} [${i.category}]${i.popular ? ' (popular)' : ''}${i.description ? ` — ${i.description}` : ''}`
@@ -66,7 +66,7 @@ function parseJson(text) {
 function matchMenuItem(name, restaurantId) {
   const norm = s => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
   const target = norm(name);
-  const items = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ?').all(restaurantId);
+  const items = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? AND available != 0').all(restaurantId);
   let exact = items.find(i => norm(i.name) === target);
   if (exact) return exact;
   return items.find(i => norm(i.name).includes(target) || target.includes(norm(i.name))) || null;

@@ -96,6 +96,12 @@ addRestaurantCol('drive_thru_enabled', 'INTEGER DEFAULT 1');
 addRestaurantCol('prep_minutes', 'INTEGER DEFAULT 15');
 addRestaurantCol('notification_phone', 'TEXT');
 
+// Menu item availability (86'd items)
+const menuCols = db.prepare('PRAGMA table_info(menu_items)').all().map(c => c.name);
+if (!menuCols.includes('available')) {
+  db.exec('ALTER TABLE menu_items ADD COLUMN available INTEGER DEFAULT 1');
+}
+
 // Merchants table for authentication
 db.exec(`
   CREATE TABLE IF NOT EXISTS merchants (

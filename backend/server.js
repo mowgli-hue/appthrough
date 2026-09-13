@@ -188,7 +188,7 @@ app.get('/api/restaurants/:id', (req, res) => {
     return res.status(404).json({ error: 'Restaurant not found' });
   }
 
-  const menuItems = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? ORDER BY popular DESC, name ASC').all(req.params.id);
+  const menuItems = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? AND available != 0 ORDER BY popular DESC, name ASC').all(req.params.id);
 
   // Group menu items by category
   const menuByCategory = {};
@@ -517,7 +517,7 @@ function publicState(s) {
 app.get('/api/restaurants/:id/kiosk', (req, res) => {
   const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'Restaurant not found' });
-  const menuItems = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? ORDER BY popular DESC, name ASC').all(req.params.id);
+  const menuItems = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? AND available != 0 ORDER BY popular DESC, name ASC').all(req.params.id);
   const popular = menuItems.filter(m => m.popular);
   res.json({ restaurant: r, menuItems, popular });
 });
@@ -741,6 +741,24 @@ app.put('/api/restaurants/:id/menu', auth.authMiddleware, requireRestaurantOwner
   res.json(items);
 });
 
+// Full menu for the merchant portal (includes sold-out items)
+app.get('/api/merchants/:id/menu', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {
+  const items = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? ORDER BY category, name').all(req.params.id);
+  res.json(items);
+});
+
+// Mark an item sold out / available (86 it)
+app.patch('/api/menu-items/:itemId/availability', auth.authMiddleware, (req, res) => {
+  const item = db.prepare('SELECT * FROM menu_items WHERE id = ?').get(req.params.itemId);
+  if (!item) return res.status(404).json({ error: 'Item not found' });
+  if (item.restaurant_id !== req.merchant.restaurantId) {
+    return res.status(403).json({ error: 'You do not have access to this item' });
+  }
+  const available = req.body.available ? 1 : 0;
+  db.prepare('UPDATE menu_items SET available = ? WHERE id = ?').run(available, req.params.itemId);
+  res.json({ id: item.id, available });
+});
+
 // Get merchant dashboard stats
 app.get('/api/merchants/:id/stats', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {
   const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
@@ -752,9 +770,31 @@ app.get('/api/merchants/:id/stats', auth.authMiddleware, requireRestaurantOwners
   const activeOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ? AND status IN ('preparing', 'ready', 'confirmed')").get(req.params.id).cnt;
   const menuCount = db.prepare('SELECT COUNT(*) as cnt FROM menu_items WHERE restaurant_id = ?').get(req.params.id).cnt;
 
+  const day = db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE restaurant_id = ? AND status NOT IN ('awaiting_payment','cancelled') AND created_at >= datetime('now','-1 day')").get(req.params.id);
+  const week = db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE restaurant_id = ? AND status NOT IN ('awaiting_payment','cancelled') AND created_at >= datetime('now','-7 day')").get(req.params.id);
+
+  // Top sellers from the last 200 orders
+  const recent = db.prepare("SELECT items FROM orders WHERE restaurant_id = ? AND status NOT IN ('awaiting_payment','cancelled') ORDER BY created_at DESC LIMIT 200").all(req.params.id);
+  const counts = {};
+  for (const row of recent) {
+    try {
+      for (const it of JSON.parse(row.items)) {
+        counts[it.name] = (counts[it.name] || 0) + (it.quantity || 1);
+      }
+    } catch {}
+  }
+  const topItems = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([name, qty]) => ({ name, qty }));
+
   res.json({
     restaurant: r,
-    stats: { totalOrders, pickupOrders, revenue: Math.round(revenue * 100) / 100, activeOrders, menuCount },
+    stats: {
+      totalOrders, pickupOrders, revenue: Math.round(revenue * 100) / 100, activeOrders, menuCount,
+      todayOrders: day.cnt, todayRevenue: Math.round(day.rev * 100) / 100,
+      weekOrders: week.cnt, weekRevenue: Math.round(week.rev * 100) / 100,
+      avgOrder: totalOrders ? Math.round((revenue / totalOrders) * 100) / 100 : 0,
+      topItems,
+    },
   });
 });
 

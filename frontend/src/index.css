@@ -4160,3 +4160,95 @@ img {
 @media (max-width: 480px) {
   .category-chips { top: 56px; padding: 8px 10px; }
 }
+
+/* ===== Merchant Portal (DoorDash-style) ===== */
+.portal-page { max-width: 1000px; margin: 0 auto; padding: 18px 16px 60px; }
+.portal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px; margin-bottom: 14px;
+}
+.portal-title h1 { margin: 0; font-size: 1.5rem; }
+.portal-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #1a7a43; font-weight: 600; }
+.portal-dot { width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; animation: portalPulse 2s infinite; }
+@keyframes portalPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(46,204,113,.5);} 50% { box-shadow: 0 0 0 6px rgba(46,204,113,0);} }
+.portal-header-actions { display: flex; gap: 8px; align-items: center; }
+.portal-header-actions .kitchen-sound-toggle { margin-top: 0; padding: 8px 14px; font-size: 0.85rem; }
+
+.portal-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+.kpi { background: #fff; border: 1px solid #eef1f6; border-radius: 14px; padding: 14px; text-align: center; }
+.kpi-value { font-size: 1.45rem; font-weight: 800; color: #1a1a2e; }
+.kpi-label { font-size: 0.75rem; color: #888; margin-top: 2px; }
+.kpi-money .kpi-value { color: #00994f; }
+.kpi-live .kpi-value { color: #e67e22; }
+
+.portal-tabs { display: flex; gap: 6px; border-bottom: 2px solid #eef1f6; margin-bottom: 16px; }
+.portal-tab {
+  padding: 10px 18px; border: none; background: none; font-size: 0.95rem; font-weight: 700;
+  color: #888; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+  display: flex; align-items: center; gap: 6px;
+}
+.portal-tab.active { color: var(--primary-dark, #00994f); border-bottom-color: var(--primary, #00cc6a); }
+.tab-badge {
+  background: #e67e22; color: #fff; font-size: 0.7rem; min-width: 20px; height: 20px;
+  border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px;
+}
+
+.portal-empty { text-align: center; padding: 60px 20px; color: #777; }
+.portal-empty span { font-size: 2.6rem; }
+.portal-empty h3 { margin: 10px 0 4px; color: #333; }
+
+.portal-orders { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.portal-order {
+  background: #fff; border: 2px solid #eef1f6; border-radius: 16px; padding: 16px;
+}
+.portal-order.status-preparing { border-color: #f0b26b; }
+.portal-order.status-ready { border-color: #2ecc71; background: #f6fffa; }
+.po-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.po-code { font-size: 1.4rem; font-weight: 800; letter-spacing: 0.12em; color: #1a1a2e; }
+.po-time { font-size: 0.8rem; color: #999; }
+.po-customer { font-size: 0.85rem; color: #555; margin-bottom: 8px; }
+.po-items { list-style: none; padding: 0; margin: 0 0 12px; }
+.po-items li { padding: 3px 0; font-size: 0.92rem; border-bottom: 1px dashed #f0f2f6; }
+.po-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.po-total { font-weight: 800; }
+.po-bottom .btn-primary, .po-bottom .btn-secondary { padding: 10px 14px; font-size: 0.85rem; }
+
+.portal-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.insight-card { background: #fff; border: 1px solid #eef1f6; border-radius: 16px; padding: 18px; }
+.insight-card h3 { margin: 0 0 12px; font-size: 1.02rem; }
+.insight-rows { display: flex; flex-direction: column; }
+.insight-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid #f4f6fa; font-size: 0.9rem;
+}
+.insight-row:last-child { border-bottom: none; }
+.insight-row span { color: #555; }
+
+.portal-hint { color: #888; font-size: 0.85rem; margin: 0 0 14px; }
+.portal-menu-section { margin-bottom: 18px; }
+.portal-menu-section h3 { font-size: 1rem; margin: 0 0 8px; color: #333; }
+.portal-menu-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: #fff; border: 1px solid #eef1f6; border-radius: 12px; padding: 10px 14px; margin-bottom: 6px;
+}
+.portal-menu-item.sold-out { opacity: 0.55; }
+.portal-menu-item.sold-out .pmi-info strong { text-decoration: line-through; }
+.pmi-info { display: flex; flex-direction: column; }
+.pmi-info strong { font-size: 0.92rem; }
+.pmi-info span { font-size: 0.78rem; color: #888; }
+
+.availability-toggle {
+  width: 50px; height: 28px; border-radius: 14px; border: none; cursor: pointer;
+  background: #d5dbe4; position: relative; transition: background 0.2s ease; flex-shrink: 0;
+}
+.availability-toggle.on { background: var(--primary, #00cc6a); }
+.toggle-knob {
+  position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; transition: transform 0.2s ease; box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+.availability-toggle.on .toggle-knob { transform: translateX(22px); }
+
+@media (max-width: 600px) {
+  .portal-kpis { grid-template-columns: repeat(2, 1fr); }
+  .portal-orders { grid-template-columns: 1fr; }
+}

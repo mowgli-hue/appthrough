@@ -46,7 +46,7 @@ function bestMatchRestaurant(text) {
 }
 
 function bestMatchMenuItems(text, restaurantId, limit = 3) {
-  const items = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ?').all(restaurantId);
+  const items = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? AND available != 0').all(restaurantId);
   const scored = items
     .map(item => ({ item, score: fuzzyScore(text, item.name) + fuzzyScore(text, item.category || '') * 0.3 }))
     .filter(s => s.score > 0.25)
@@ -82,7 +82,7 @@ function getUpsellSuggestion(addedItemName, restaurantId, currentItemIds) {
     if (lower.includes(keyword)) { candidates = suggestions; break; }
   }
   if (!candidates.length) return null;
-  const menu = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ?').all(restaurantId);
+  const menu = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? AND available != 0').all(restaurantId);
   for (const candidate of candidates) {
     const match = menu.find(m => normalize(m.name).includes(candidate) && !currentItemIds.includes(m.id));
     if (match) return match;
