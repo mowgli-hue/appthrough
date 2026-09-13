@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { authHeaders, getToken } from '../utils/auth';
+import { formatTime } from '../utils/time';
 
 // Ascending two-tone ring, repeated — loud enough for a kitchen.
 function playRing(repeats = 3) {
@@ -158,7 +159,7 @@ function KitchenPickup() {
                 <span>📞 {order.customer_phone}</span>
                 <span className="kitchen-restaurant">{order.restaurant_name}</span>
                 <span className="kitchen-time">
-                  Placed {new Date(order.created_at).toLocaleTimeString()}
+                  Placed {formatTime(order.created_at)}
                 </span>
               </div>
               <ul className="kitchen-items">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../utils/time';
 import { Link } from 'react-router-dom';
 
 function Orders() {
@@ -37,10 +38,7 @@ function Orders() {
                 <div>
                   <h3>{order.restaurant_name}</h3>
                   <p className="order-date">
-                    {new Date(order.created_at).toLocaleDateString('en-US', {
-                      month: 'short', day: 'numeric', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit',
-                    })}
+                    {formatDate(order.created_at)}
                   </p>
                 </div>
                 <span className={`status-badge status-${order.status}`}>{order.status}</span>
