@@ -4279,3 +4279,17 @@ img {
   padding: 3px 8px;
   border-radius: 10px;
 }
+
+/* Dead-simple kitchen screen: just orders */
+.kitchen-header-simple {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.kitchen-header-simple h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+.kitchen-header-simple .kitchen-sound-toggle { margin-top: 0; }

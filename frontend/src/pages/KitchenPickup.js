@@ -107,10 +107,10 @@ function KitchenPickup() {
   if (unauthorized) {
     return (
       <div className="kitchen-page">
-        <div className="kitchen-header">
-          <h1>Kitchen — Pickup Orders</h1>
+        <div className="kitchen-header kitchen-header-simple">
+          <h1>Orders</h1>
         </div>
-        <p>You need to be signed in as this restaurant's merchant to view the kitchen queue.</p>
+        <p>Sign in as the restaurant to see orders.</p>
         <Link to="/login" className="btn-primary">Merchant login</Link>
       </div>
     );
@@ -122,14 +122,13 @@ function KitchenPickup() {
 
   return (
     <div className="kitchen-page">
-      <div className="kitchen-header">
-        <h1>🍳 Kitchen — Walk-up Pickup Queue</h1>
-        <p>Mark orders as ready to notify the customer on their phone.</p>
+      <div className="kitchen-header kitchen-header-simple">
+        <h1>Orders</h1>
         <button
           className={`kitchen-sound-toggle ${soundOn ? 'on' : ''}`}
           onClick={toggleSound}
         >
-          {soundOn ? '🔔 Ring on new orders: ON' : '🔕 Ring on new orders: OFF — tap to enable'}
+          {soundOn ? '🔔 Sound on' : '🔕 Tap to enable sound'}
         </button>
       </div>
 
