@@ -14,6 +14,7 @@ function RestaurantAdmin() {
     pickup_instructions: '',
     agent_voice: 'friendly',
     drive_thru_enabled: true,
+    notification_phone: '',
   });
 
   useEffect(() => {
@@ -26,6 +27,7 @@ function RestaurantAdmin() {
           pickup_instructions: data.pickup_instructions || '',
           agent_voice: data.agent_voice || 'friendly',
           drive_thru_enabled: data.drive_thru_enabled !== 0,
+          notification_phone: data.notification_phone || '',
         });
         setLoading(false);
       });
@@ -109,6 +111,19 @@ function RestaurantAdmin() {
               value={form.pickup_instructions}
               onChange={e => update('pickup_instructions', e.target.value)}
               rows={2}
+            />
+          </label>
+
+          <label className="admin-label">
+            New-Order Text Alerts
+            <small>We text this number every time an order comes in (owner or manager's mobile)</small>
+            <input
+              type="tel"
+              className="admin-textarea"
+              style={{ minHeight: 'auto', padding: '10px 14px' }}
+              placeholder="+1 403 555 0123"
+              value={form.notification_phone}
+              onChange={e => update('notification_phone', e.target.value)}
             />
           </label>
 

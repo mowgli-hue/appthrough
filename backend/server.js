@@ -265,6 +265,12 @@ app.post('/api/orders', orderLimiter, (req, res) => {
     }).catch(() => {});
   }
 
+  // Text the restaurant so staff know even away from the kitchen tablet
+  sms.notifyRestaurantNewOrder(
+    { pickup_code: pickupCode, items, total, customer_name },
+    restaurant.notification_phone,
+  ).catch(() => {});
+
   res.status(201).json({
     id: orderId,
     restaurant_id,
@@ -446,6 +452,13 @@ app.post('/api/agent/message', async (req, res) => {
       pickup_code: pickupCode,
     }).catch(() => {});
 
+    // Text the restaurant too
+    const freshRestaurant = db.prepare('SELECT notification_phone FROM restaurants WHERE id = ?').get(session.restaurant.id);
+    sms.notifyRestaurantNewOrder(
+      { pickup_code: pickupCode, items: session.items, total, customer_name: session.name },
+      freshRestaurant?.notification_phone,
+    ).catch(() => {});
+
     const confirmationReply = result.spokenConfirmation
       ? `${result.spokenConfirmation} Your pickup code is ${pickupCode.split('').join(' ')}.`
       : `Awesome, you're all set ${session.name}! Your pickup code is ${pickupCode.split('').join(' ')}. ` +
@@ -489,7 +502,7 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'Restaurant not found' });
 
-  const { greeting, supported_languages, default_language, agent_voice, pickup_instructions, drive_thru_enabled, prep_minutes, delivery_time } = req.body;
+  const { greeting, supported_languages, default_language, agent_voice, pickup_instructions, drive_thru_enabled, prep_minutes, delivery_time, notification_phone } = req.body;
   const fields = [];
   const values = [];
 
@@ -501,6 +514,7 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   if (drive_thru_enabled !== undefined) { fields.push('drive_thru_enabled = ?'); values.push(drive_thru_enabled ? 1 : 0); }
   if (prep_minutes !== undefined) { fields.push('prep_minutes = ?'); values.push(Math.max(1, Math.min(180, parseInt(prep_minutes, 10) || 15))); }
   if (delivery_time !== undefined) { fields.push('delivery_time = ?'); values.push(String(delivery_time).slice(0, 30)); }
+  if (notification_phone !== undefined) { fields.push('notification_phone = ?'); values.push(String(notification_phone).replace(/[^\d+]/g, '').slice(0, 20)); }
 
   if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
 

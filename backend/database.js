@@ -94,6 +94,7 @@ addRestaurantCol('agent_voice', "TEXT DEFAULT 'friendly'");
 addRestaurantCol('pickup_instructions', 'TEXT');
 addRestaurantCol('drive_thru_enabled', 'INTEGER DEFAULT 1');
 addRestaurantCol('prep_minutes', 'INTEGER DEFAULT 15');
+addRestaurantCol('notification_phone', 'TEXT');
 
 // Merchants table for authentication
 db.exec(`
