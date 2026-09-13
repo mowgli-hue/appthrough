@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
@@ -11,6 +11,47 @@ function Checkout() {
   const [phone, setPhone] = useState('');
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
+
+  // --- Stripe card payment (enabled when the server has keys configured) ---
+  const [stripeReady, setStripeReady] = useState(false);
+  const [payMethod, setPayMethod] = useState('pickup'); // 'card' | 'pickup'
+  const stripeRef = useRef(null);
+  const cardRef = useRef(null);
+  const cardMountRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/payments/config')
+      .then(r => r.json())
+      .then(cfg => {
+        if (cancelled || !cfg.enabled || !cfg.publishableKey) return;
+        const init = () => {
+          if (cancelled || !window.Stripe) return;
+          stripeRef.current = window.Stripe(cfg.publishableKey);
+          setStripeReady(true);
+          setPayMethod('card');
+        };
+        if (window.Stripe) init();
+        else {
+          const sc = document.createElement('script');
+          sc.src = 'https://js.stripe.com/v3/';
+          sc.onload = init;
+          document.head.appendChild(sc);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Mount the card input whenever card payment is selected
+  useEffect(() => {
+    if (!stripeReady || payMethod !== 'card' || !cardMountRef.current) return;
+    const elements = stripeRef.current.elements();
+    const card = elements.create('card', { style: { base: { fontSize: '16px' } } });
+    card.mount(cardMountRef.current);
+    cardRef.current = card;
+    return () => { card.destroy(); cardRef.current = null; };
+  }, [stripeReady, payMethod]);
 
   if (itemCount === 0) {
     return (
@@ -59,6 +100,29 @@ function Checkout() {
         throw new Error(err.error || 'Failed to place order');
       }
       const order = await res.json();
+
+      // Charge the card if the customer chose to pay now
+      if (stripeReady && payMethod === 'card' && cardRef.current) {
+        const payRes = await fetch('/api/payments/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: order.id, amount: order.total }),
+        });
+        const pay = await payRes.json();
+        if (!payRes.ok || !pay.clientSecret) throw new Error(pay.error || 'Could not start payment');
+
+        if (!String(pay.clientSecret).startsWith('dev_')) {
+          const result = await stripeRef.current.confirmCardPayment(pay.clientSecret, {
+            payment_method: { card: cardRef.current, billing_details: { name } },
+          });
+          if (result.error) throw new Error(result.error.message);
+        }
+        await fetch('/api/payments/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentId: pay.paymentId, paymentIntentId: pay.paymentIntentId }),
+        });
+      }
 
       // Ask for notification permission up front so we can ping them when ready.
       if (isPickup && 'Notification' in window && Notification.permission === 'default') {
@@ -161,6 +225,19 @@ function Checkout() {
         <div className="checkout-sidebar">
           <div className="order-summary">
             <h2>Order Summary</h2>
+            {stripeReady && (
+              <div className="pay-method">
+                <label className={payMethod === 'card' ? 'pay-option selected' : 'pay-option'}>
+                  <input type="radio" name="paymethod" checked={payMethod === 'card'} onChange={() => setPayMethod('card')} />
+                  💳 Pay now by card
+                </label>
+                <label className={payMethod === 'pickup' ? 'pay-option selected' : 'pay-option'}>
+                  <input type="radio" name="paymethod" checked={payMethod === 'pickup'} onChange={() => setPayMethod('pickup')} />
+                  🏪 Pay at pickup
+                </label>
+                {payMethod === 'card' && <div className="card-element-box" ref={cardMountRef} />}
+              </div>
+            )}
             <div className="summary-row">
               <span>Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>

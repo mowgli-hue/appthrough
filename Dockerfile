@@ -20,4 +20,4 @@ COPY backend/ ./backend/
 EXPOSE 3001
 
 # Seed on first boot only (keeps data when a volume is mounted at /app/backend/data)
-CMD ["sh", "-c", "[ -f backend/food_delivery.db ] || node backend/seed.js; node backend/server.js"]
+CMD ["sh", "-c", "DB=${DATABASE_PATH:-backend/food_delivery.db}; [ -f \"$DB\" ] || node backend/seed.js; node backend/server.js"]

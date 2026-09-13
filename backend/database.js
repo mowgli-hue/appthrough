@@ -1,7 +1,11 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
-const db = new Database(path.join(__dirname, 'food_delivery.db'));
+// DATABASE_PATH lets production point at a mounted volume (e.g. /data/food_delivery.db)
+const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'food_delivery.db');
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+const db = new Database(DB_PATH);
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');

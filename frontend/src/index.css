@@ -3881,3 +3881,32 @@ img {
     font-size: 2.2rem;
   }
 }
+
+/* --- Checkout payment method --- */
+.pay-method {
+  margin: 12px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pay-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 2px solid var(--gray-200, #e2e8f0);
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.pay-option.selected {
+  border-color: var(--primary, #00cc6a);
+  background: var(--primary-light, #e6fff2);
+}
+.card-element-box {
+  padding: 12px 14px;
+  border: 2px solid var(--gray-200, #e2e8f0);
+  border-radius: 10px;
+  background: #fff;
+}

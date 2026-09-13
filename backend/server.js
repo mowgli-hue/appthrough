@@ -92,6 +92,11 @@ app.get('/api/auth/me', auth.authMiddleware, (req, res) => {
 
 // --- Payment routes --------------------------------------------------------
 
+// Tells the frontend whether real card payment is available (and the public key)
+app.get('/api/payments/config', (req, res) => {
+  res.json({ enabled: payments.isConfigured() && Boolean(payments.publishableKey()), publishableKey: payments.publishableKey() });
+});
+
 app.post('/api/payments/create', async (req, res) => {
   const { orderId, amount } = req.body;
   if (!orderId || !amount) return res.status(400).json({ error: 'orderId and amount required' });
@@ -111,7 +116,7 @@ app.post('/api/payments/confirm', async (req, res) => {
   const { paymentId, paymentIntentId } = req.body;
 
   const result = await payments.confirmPayment(paymentIntentId);
-  if (result.success) {
+  if (result.success && (result.dev || result.status === 'succeeded')) {
     db.prepare('UPDATE payments SET status = ? WHERE id = ?').run('succeeded', paymentId);
     const payment = db.prepare('SELECT order_id FROM payments WHERE id = ?').get(paymentId);
     if (payment) {

@@ -11,7 +11,17 @@ try {
   }
 } catch {}
 
-async function createPaymentIntent(amountDollars, metadata = {}) {
+const CURRENCY = (process.env.CURRENCY || 'usd').toLowerCase();
+
+function isConfigured() {
+  return Boolean(stripe);
+}
+
+function publishableKey() {
+  return process.env.STRIPE_PUBLISHABLE_KEY || null;
+}
+
+async function createPaymentIntent(amountDollars, metadata = {}, methodType = 'card') {
   const amountCents = Math.round(amountDollars * 100);
 
   if (!stripe) {
@@ -28,9 +38,9 @@ async function createPaymentIntent(amountDollars, metadata = {}) {
   try {
     const intent = await stripe.paymentIntents.create({
       amount: amountCents,
-      currency: 'usd',
+      currency: CURRENCY,
       metadata,
-      payment_method_types: ['card_present'],
+      payment_method_types: [methodType], // 'card' online, 'card_present' for terminals
       capture_method: 'automatic',
     });
     return {
@@ -59,4 +69,4 @@ async function confirmPayment(paymentIntentId) {
   }
 }
 
-module.exports = { createPaymentIntent, confirmPayment };
+module.exports = { createPaymentIntent, confirmPayment, isConfigured, publishableKey };
