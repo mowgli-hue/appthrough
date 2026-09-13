@@ -4252,3 +4252,30 @@ img {
   .portal-kpis { grid-template-columns: repeat(2, 1fr); }
   .portal-orders { grid-template-columns: 1fr; }
 }
+
+/* Clean chrome for merchant/staff screens */
+.portal-nav {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid #eef1f6;
+  position: sticky;
+  top: 0;
+  z-index: 950;
+}
+.portal-brand {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #1a1a2e;
+  text-decoration: none;
+}
+.portal-brand span {
+  color: var(--primary-dark, #00994f);
+  font-weight: 600;
+  font-size: 0.8rem;
+  margin-left: 6px;
+  background: var(--primary-light, #e6fff2);
+  padding: 3px 8px;
+  border-radius: 10px;
+}
