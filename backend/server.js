@@ -121,6 +121,28 @@ app.post('/api/payments/confirm', async (req, res) => {
     const payment = db.prepare('SELECT order_id FROM payments WHERE id = ?').get(paymentId);
     if (payment) {
       db.prepare("UPDATE orders SET payment_status = 'paid', payment_id = ? WHERE id = ?").run(paymentId, payment.order_id);
+
+      // If this order was held for payment, release it to the kitchen now
+      const ord = db.prepare(`
+        SELECT o.*, r.name as restaurant_name, r.notification_phone
+        FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
+        WHERE o.id = ?
+      `).get(payment.order_id);
+      if (ord && ord.status === 'awaiting_payment') {
+        db.prepare("UPDATE orders SET status = 'preparing' WHERE id = ?").run(ord.id);
+        if (ord.customer_phone) {
+          sms.notifyOrderPlaced({
+            customer_name: ord.customer_name || 'there',
+            customer_phone: ord.customer_phone,
+            restaurant_name: ord.restaurant_name,
+            pickup_code: ord.pickup_code,
+          }).catch(() => {});
+        }
+        sms.notifyRestaurantNewOrder(
+          { pickup_code: ord.pickup_code, items: ord.items, total: ord.total, customer_name: ord.customer_name },
+          ord.notification_phone,
+        ).catch(() => {});
+      }
     }
   }
 
@@ -241,7 +263,9 @@ app.post('/api/orders', orderLimiter, (req, res) => {
 
   const orderId = uuidv4();
   const pickupCode = type === 'pickup' ? generatePickupCode() : null;
-  const initialStatus = type === 'pickup' ? 'preparing' : 'confirmed';
+  // Card-paid orders stay hidden from the kitchen until payment succeeds
+  const payFirst = Boolean(req.body.pay_first);
+  const initialStatus = payFirst ? 'awaiting_payment' : (type === 'pickup' ? 'preparing' : 'confirmed');
 
   db.prepare(`
     INSERT INTO orders (
@@ -255,21 +279,22 @@ app.post('/api/orders', orderLimiter, (req, res) => {
     initialStatus,
   );
 
-  // Send SMS for pickup orders
-  if (type === 'pickup' && customer_phone) {
-    sms.notifyOrderPlaced({
-      customer_name: customer_name || 'there',
-      customer_phone,
-      restaurant_name: restaurant.name,
-      pickup_code: pickupCode,
-    }).catch(() => {});
+  // Notifications go out now for pay-at-pickup orders; card orders notify
+  // only after the payment succeeds (see /api/payments/confirm)
+  if (!payFirst) {
+    if (type === 'pickup' && customer_phone) {
+      sms.notifyOrderPlaced({
+        customer_name: customer_name || 'there',
+        customer_phone,
+        restaurant_name: restaurant.name,
+        pickup_code: pickupCode,
+      }).catch(() => {});
+    }
+    sms.notifyRestaurantNewOrder(
+      { pickup_code: pickupCode, items, total, customer_name },
+      restaurant.notification_phone,
+    ).catch(() => {});
   }
-
-  // Text the restaurant so staff know even away from the kitchen tablet
-  sms.notifyRestaurantNewOrder(
-    { pickup_code: pickupCode, items, total, customer_name },
-    restaurant.notification_phone,
-  ).catch(() => {});
 
   res.status(201).json({
     id: orderId,
@@ -331,7 +356,7 @@ app.get('/api/pickup-orders', auth.authMiddleware, (req, res) => {
     SELECT o.*, r.name as restaurant_name
     FROM orders o
     JOIN restaurants r ON o.restaurant_id = r.id
-    WHERE o.order_type = 'pickup' AND o.status != 'picked_up' AND o.status != 'cancelled'
+    WHERE o.order_type = 'pickup' AND o.status NOT IN ('picked_up', 'cancelled', 'awaiting_payment')
       AND o.restaurant_id = ?
     ORDER BY o.created_at ASC
   `).all(req.merchant.restaurantId);
@@ -721,9 +746,9 @@ app.get('/api/merchants/:id/stats', auth.authMiddleware, requireRestaurantOwners
   const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'Restaurant not found' });
 
-  const totalOrders = db.prepare('SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ?').get(req.params.id).cnt;
+  const totalOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ? AND status NOT IN ('awaiting_payment','cancelled')").get(req.params.id).cnt;
   const pickupOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ? AND order_type = 'pickup'").get(req.params.id).cnt;
-  const revenue = db.prepare('SELECT COALESCE(SUM(total), 0) as rev FROM orders WHERE restaurant_id = ?').get(req.params.id).rev;
+  const revenue = db.prepare("SELECT COALESCE(SUM(total), 0) as rev FROM orders WHERE restaurant_id = ? AND status NOT IN ('awaiting_payment','cancelled')").get(req.params.id).rev;
   const activeOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ? AND status IN ('preparing', 'ready', 'confirmed')").get(req.params.id).cnt;
   const menuCount = db.prepare('SELECT COUNT(*) as cnt FROM menu_items WHERE restaurant_id = ?').get(req.params.id).cnt;
 

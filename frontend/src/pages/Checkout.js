@@ -77,6 +77,8 @@ function Checkout() {
     if (!name.trim()) return setError('Please enter your name.');
     if (!validPhone(phone)) return setError('Please enter a valid 10-digit mobile number — we text you when your order is ready.');
 
+    const payingByCard = stripeReady && payMethod === 'card' && Boolean(cardRef.current);
+
     setPlacing(true);
     try {
       const res = await fetch('/api/orders', {
@@ -89,6 +91,7 @@ function Checkout() {
           delivery_address: '',
           customer_name: name,
           customer_phone: phone,
+          pay_first: payingByCard,
         }),
       });
       if (!res.ok) {
@@ -98,7 +101,7 @@ function Checkout() {
       const order = await res.json();
 
       // Charge the card if the customer chose to pay now
-      if (stripeReady && payMethod === 'card' && cardRef.current) {
+      if (payingByCard) {
         const payRes = await fetch('/api/payments/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
