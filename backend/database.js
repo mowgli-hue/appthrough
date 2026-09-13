@@ -93,6 +93,7 @@ addRestaurantCol('default_language', "TEXT DEFAULT 'en'");
 addRestaurantCol('agent_voice', "TEXT DEFAULT 'friendly'");
 addRestaurantCol('pickup_instructions', 'TEXT');
 addRestaurantCol('drive_thru_enabled', 'INTEGER DEFAULT 1');
+addRestaurantCol('prep_minutes', 'INTEGER DEFAULT 15');
 
 // Merchants table for authentication
 db.exec(`

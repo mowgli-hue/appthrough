@@ -336,7 +336,7 @@ app.get('/api/pickup-orders', auth.authMiddleware, (req, res) => {
 // Get order by ID (includes queue position + ETA for pickup orders)
 app.get('/api/orders/:id', (req, res) => {
   const order = db.prepare(`
-    SELECT o.*, r.name as restaurant_name, r.image as restaurant_image
+    SELECT o.*, r.name as restaurant_name, r.image as restaurant_image, r.prep_minutes as restaurant_prep_minutes
     FROM orders o
     JOIN restaurants r ON o.restaurant_id = r.id
     WHERE o.id = ?
@@ -357,7 +357,9 @@ app.get('/api/orders/:id', (req, res) => {
         AND created_at < ?
     `).get(order.restaurant_id, order.created_at);
     order.queue_position = (ahead?.cnt || 0) + 1;
-    order.estimated_minutes = order.queue_position * 4;
+    // Base kitchen prep time (per restaurant) + 4 min per order ahead in queue
+    const prep = order.restaurant_prep_minutes || 15;
+    order.estimated_minutes = prep + (order.queue_position - 1) * 4;
   } else if (order.order_type === 'pickup' && order.status === 'ready') {
     order.queue_position = 0;
     order.estimated_minutes = 0;
@@ -487,7 +489,7 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'Restaurant not found' });
 
-  const { greeting, supported_languages, default_language, agent_voice, pickup_instructions, drive_thru_enabled } = req.body;
+  const { greeting, supported_languages, default_language, agent_voice, pickup_instructions, drive_thru_enabled, prep_minutes, delivery_time } = req.body;
   const fields = [];
   const values = [];
 
@@ -497,6 +499,8 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   if (agent_voice !== undefined) { fields.push('agent_voice = ?'); values.push(agent_voice); }
   if (pickup_instructions !== undefined) { fields.push('pickup_instructions = ?'); values.push(pickup_instructions); }
   if (drive_thru_enabled !== undefined) { fields.push('drive_thru_enabled = ?'); values.push(drive_thru_enabled ? 1 : 0); }
+  if (prep_minutes !== undefined) { fields.push('prep_minutes = ?'); values.push(Math.max(1, Math.min(180, parseInt(prep_minutes, 10) || 15))); }
+  if (delivery_time !== undefined) { fields.push('delivery_time = ?'); values.push(String(delivery_time).slice(0, 30)); }
 
   if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
 
