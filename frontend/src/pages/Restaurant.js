@@ -42,9 +42,9 @@ function Restaurant() {
               <span className="dot">·</span>
               <span>{restaurant.cuisine}</span>
               <span className="dot">·</span>
-              <span>{restaurant.delivery_time}</span>
+              <span>⏱ {restaurant.delivery_time}</span>
               <span className="dot">·</span>
-              <span>${restaurant.delivery_fee.toFixed(2)} delivery</span>
+              <span>🚶 Walk-up pickup</span>
             </div>
             <p className="restaurant-description">{restaurant.description}</p>
           </div>

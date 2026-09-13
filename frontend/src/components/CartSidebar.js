@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
 function CartSidebar({ isOpen, onClose }) {
-  const { cart, addItem, removeItem, clearCart, subtotal, tax, total, itemCount } = useCart();
+  const { cart, addItem, removeItem, clearCart, subtotal, tax, itemCount } = useCart();
   const navigate = useNavigate();
+  const APPTHRU_FEE = 1.0;
+  const grandTotal = Math.round((subtotal + tax + APPTHRU_FEE) * 100) / 100;
 
   const handleCheckout = () => {
     onClose();
@@ -24,7 +26,7 @@ function CartSidebar({ isOpen, onClose }) {
           <div className="cart-empty">
             <span className="empty-icon">🛒</span>
             <p>Your cart is empty</p>
-            <p className="empty-subtitle">Add items from a restaurant to get started</p>
+            <p className="empty-subtitle">Tap the green + on any item to start your order</p>
           </div>
         ) : (
           <>
@@ -53,23 +55,22 @@ function CartSidebar({ isOpen, onClose }) {
                 <span>${subtotal.toFixed(2)}</span>
               </div>
               <div className="summary-row">
-                <span>Delivery Fee</span>
-                <span>${cart.deliveryFee.toFixed(2)}</span>
-                <small style={{ fontSize: '0.75rem', color: '#888' }}>Free with walk-up pickup</small>
-              </div>
-              <div className="summary-row">
                 <span>Tax</span>
                 <span>${tax.toFixed(2)}</span>
               </div>
+              <div className="summary-row">
+                <span>App-Thru Fee</span>
+                <span>${APPTHRU_FEE.toFixed(2)}</span>
+              </div>
               <div className="summary-row total">
                 <span>Total</span>
-                <span>${total.toFixed(2)}</span>
+                <span>${grandTotal.toFixed(2)}</span>
               </div>
             </div>
 
             <div className="cart-actions">
               <button className="checkout-btn" onClick={handleCheckout}>
-                Checkout - ${total.toFixed(2)}
+                Checkout · ${grandTotal.toFixed(2)} →
               </button>
               <button className="clear-btn" onClick={clearCart}>Clear Cart</button>
             </div>

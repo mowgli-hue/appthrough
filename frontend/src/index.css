@@ -3910,3 +3910,138 @@ img {
   border-radius: 10px;
   background: #fff;
 }
+
+/* ===== UI polish: circular buttons, photos, interactive feedback ===== */
+
+/* Perfectly circular add button */
+.add-btn {
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  border: none;
+  background: var(--primary, #00cc6a);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0, 204, 106, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.add-btn:hover { transform: scale(1.08); box-shadow: 0 5px 16px rgba(0, 204, 106, 0.45); }
+.add-btn:active { transform: scale(0.88); }
+.add-btn.pop { animation: addPop 0.3s ease; }
+@keyframes addPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* Quantity stepper shown once an item is in the cart */
+.item-stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--primary-light, #e6fff2);
+  border: 2px solid var(--primary, #00cc6a);
+  border-radius: 26px;
+  padding: 3px;
+}
+.item-stepper.pop { animation: addPop 0.3s ease; }
+.stepper-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: #fff;
+  color: var(--primary-dark, #00994f);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease;
+}
+.stepper-btn:active { transform: scale(0.85); }
+.stepper-btn.stepper-add { background: var(--primary, #00cc6a); color: #fff; }
+.stepper-qty {
+  min-width: 26px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--primary-dark, #00994f);
+}
+
+/* Food photos on menu cards */
+.menu-item {
+  align-items: center;
+}
+.menu-item-photo {
+  width: 72px;
+  height: 72px;
+  min-width: 72px;
+  object-fit: cover;
+  border-radius: 14px;
+  margin-right: 14px;
+  background: #f2f4f8;
+}
+.menu-item-selected {
+  border: 2px solid var(--primary, #00cc6a) !important;
+  background: #fbfffc;
+}
+
+/* Readable restaurant hero */
+.restaurant-hero-overlay {
+  background: linear-gradient(180deg, rgba(10, 14, 20, 0.35) 0%, rgba(10, 14, 20, 0.75) 100%) !important;
+}
+.restaurant-hero-content h1,
+.restaurant-hero-meta,
+.restaurant-description {
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+}
+
+/* Cart: circular qty buttons + inviting checkout */
+.cart-item-controls button {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  font-weight: 700;
+  transition: transform 0.12s ease;
+}
+.cart-item-controls button:active { transform: scale(0.85); }
+.close-btn {
+  width: 40px !important;
+  height: 40px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.checkout-btn {
+  font-size: 1.15rem !important;
+  padding: 16px !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 14px rgba(0, 204, 106, 0.35);
+  transition: transform 0.15s ease;
+}
+.checkout-btn:active { transform: scale(0.97); }
+
+/* Cart badge bump when count changes */
+.cart-badge { animation: addPop 0.3s ease; }
+
+@media (max-width: 480px) {
+  .menu-item-photo { width: 62px; height: 62px; min-width: 62px; }
+}
