@@ -15,7 +15,7 @@ const llmAgent = require('./llm-agent');
 const app = express();
 const PORT = process.env.PORT || 3001;
 // Flat App-Thru platform fee added to every order (dollars)
-const APPTHRU_FEE = Math.max(0, parseFloat(process.env.APPTHRU_FEE ?? '1.00') || 0);
+const APPTHRU_FEE = Math.max(0, parseFloat(process.env.APPTHRU_FEE ?? '0.99') || 0);
 
 app.use(cors());
 app.use(express.json());

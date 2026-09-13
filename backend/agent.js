@@ -150,7 +150,7 @@ function getSession(id, opts) {
 
 // --- Natural response helpers ----------------------------------------------
 
-const APPTHRU_FEE = Math.max(0, parseFloat(process.env.APPTHRU_FEE ?? '1.00') || 0);
+const APPTHRU_FEE = Math.max(0, parseFloat(process.env.APPTHRU_FEE ?? '0.99') || 0);
 
 function summarize(session) {
   const subtotal = session.items.reduce((s, i) => s + i.price * i.quantity, 0);

@@ -7,7 +7,7 @@ function Restaurant() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { itemCount, subtotal, tax } = useCart();
-  const cartTotal = Math.round((subtotal + tax + 1.0) * 100) / 100; // incl. $1 App-Thru fee
+  const cartTotal = Math.round((subtotal + tax + 0.99) * 100) / 100; // incl. $0.99 App-Thru fee
   const [restaurant, setRestaurant] = useState(null);
   const [loading, setLoading] = useState(true);
 

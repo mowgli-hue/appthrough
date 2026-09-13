@@ -67,7 +67,7 @@ function Checkout() {
 
   const isPickup = true;
   const effectiveDeliveryFee = 0;
-  const APPTHRU_FEE = 1.0;
+  const APPTHRU_FEE = 0.99;
   const effectiveTotal = Math.round((subtotal + effectiveDeliveryFee + tax + APPTHRU_FEE) * 100) / 100;
 
   const validPhone = (p) => p.replace(/\D/g, '').length >= 10;

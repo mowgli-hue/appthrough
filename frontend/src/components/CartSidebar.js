@@ -5,7 +5,7 @@ import { useCart } from '../context/CartContext';
 function CartSidebar({ isOpen, onClose }) {
   const { cart, addItem, removeItem, clearCart, subtotal, tax, itemCount } = useCart();
   const navigate = useNavigate();
-  const APPTHRU_FEE = 1.0;
+  const APPTHRU_FEE = 0.99;
   const grandTotal = Math.round((subtotal + tax + APPTHRU_FEE) * 100) / 100;
 
   const handleCheckout = () => {
