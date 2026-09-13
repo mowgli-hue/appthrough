@@ -4045,3 +4045,118 @@ img {
 @media (max-width: 480px) {
   .menu-item-photo { width: 62px; height: 62px; min-width: 62px; }
 }
+
+/* ===== Compact & beautiful pass ===== */
+
+/* Floating cart bar (appears after adding items) */
+.floating-cart-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  width: min(560px, calc(100% - 28px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border: none;
+  border-radius: 16px;
+  background: var(--primary, #00cc6a);
+  color: #fff;
+  font-size: 1.02rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 204, 106, 0.45);
+  z-index: 900;
+  animation: fcbIn 0.25s ease;
+}
+@keyframes fcbIn {
+  from { transform: translate(-50%, 80px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+.floating-cart-bar:active { transform: translateX(-50%) scale(0.98); }
+.fcb-count {
+  background: rgba(255, 255, 255, 0.25);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+}
+.fcb-label { flex: 1; text-align: left; }
+.fcb-total { font-size: 1.05rem; }
+
+/* Room so the bar never covers the last menu items */
+.restaurant-page { padding-bottom: 96px; }
+
+/* Compact hero */
+.restaurant-hero { height: 190px !important; }
+.restaurant-hero-content h1 { font-size: 1.7rem !important; margin-bottom: 4px; }
+.restaurant-hero-meta { font-size: 0.85rem !important; }
+.restaurant-description {
+  font-size: 0.85rem !important;
+  max-width: 560px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Compact menu cards */
+.menu-container { max-width: 860px; margin: 0 auto; }
+.menu-category-title { font-size: 1.15rem !important; margin: 18px 0 10px !important; }
+.menu-item { padding: 12px 14px !important; }
+.menu-item-header h4 { font-size: 0.98rem !important; }
+.menu-item-description { font-size: 0.8rem !important; }
+.menu-item-price { font-size: 0.95rem !important; margin-top: 2px !important; }
+.menu-item-photo { width: 60px; height: 60px; min-width: 60px; border-radius: 12px; }
+.add-btn { width: 40px !important; height: 40px !important; min-width: 40px; font-size: 1.4rem; }
+.stepper-btn { width: 30px; height: 30px; font-size: 1.1rem; }
+.popular-badge { font-size: 0.62rem !important; padding: 2px 7px !important; }
+
+@media (max-width: 480px) {
+  .restaurant-hero { height: 160px !important; }
+  .restaurant-hero-content h1 { font-size: 1.45rem !important; }
+  .menu-item-photo { width: 54px; height: 54px; min-width: 54px; }
+}
+
+/* Sticky category chips */
+.category-chips {
+  position: sticky;
+  top: 64px;
+  z-index: 800;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #eef1f6;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.category-chips::-webkit-scrollbar { display: none; }
+.category-chip {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.category-chip:hover,
+.category-chip:active {
+  background: var(--primary, #00cc6a);
+  border-color: var(--primary, #00cc6a);
+  color: #fff;
+}
+.menu-section { scroll-margin-top: 118px; }
+@media (max-width: 480px) {
+  .category-chips { top: 56px; padding: 8px 10px; }
+}

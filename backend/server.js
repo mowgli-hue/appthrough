@@ -515,6 +515,7 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   if (prep_minutes !== undefined) { fields.push('prep_minutes = ?'); values.push(Math.max(1, Math.min(180, parseInt(prep_minutes, 10) || 15))); }
   if (delivery_time !== undefined) { fields.push('delivery_time = ?'); values.push(String(delivery_time).slice(0, 30)); }
   if (notification_phone !== undefined) { fields.push('notification_phone = ?'); values.push(String(notification_phone).replace(/[^\d+]/g, '').slice(0, 20)); }
+  if (req.body.image !== undefined) { fields.push('image = ?'); values.push(String(req.body.image).slice(0, 500)); }
 
   if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
 

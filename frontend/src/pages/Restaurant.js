@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import MenuItem from '../components/MenuItem';
+import { useCart } from '../context/CartContext';
 
 function Restaurant() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { itemCount, subtotal, tax } = useCart();
+  const cartTotal = Math.round((subtotal + tax + 1.0) * 100) / 100; // incl. $1 App-Thru fee
   const [restaurant, setRestaurant] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,9 +55,22 @@ function Restaurant() {
         </div>
       </div>
 
+      {/* Sticky category navigation */}
+      <div className="category-chips">
+        {Object.keys(restaurant.menu).map(category => (
+          <button
+            key={category}
+            className="category-chip"
+            onClick={() => document.getElementById(`cat-${category}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          >
+            {category}
+          </button>
+        ))}
+      </div>
+
       <div className="menu-container">
         {Object.entries(restaurant.menu).map(([category, items]) => (
-          <div key={category} className="menu-section">
+          <div key={category} className="menu-section" id={`cat-${category}`}>
             <h2 className="menu-category-title">{category}</h2>
             <div className="menu-items-grid">
               {items.map(item => (
@@ -63,6 +80,15 @@ function Restaurant() {
           </div>
         ))}
       </div>
+
+      {/* Floating cart bar — appears once something is added */}
+      {itemCount > 0 && (
+        <button className="floating-cart-bar" onClick={() => navigate('/checkout')}>
+          <span className="fcb-count">{itemCount}</span>
+          <span className="fcb-label">View cart &amp; checkout</span>
+          <span className="fcb-total">${cartTotal.toFixed(2)} →</span>
+        </button>
+      )}
     </div>
   );
 }
