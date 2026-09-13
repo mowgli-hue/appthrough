@@ -14,6 +14,8 @@ const llmAgent = require('./llm-agent');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+// Flat App-Thru platform fee added to every order (dollars)
+const APPTHRU_FEE = Math.max(0, parseFloat(process.env.APPTHRU_FEE ?? '1.00') || 0);
 
 app.use(cors());
 app.use(express.json());
@@ -229,7 +231,8 @@ app.post('/api/orders', orderLimiter, (req, res) => {
   // Walk-up pickup = no delivery fee (that's the whole point!)
   const delivery_fee = type === 'pickup' ? 0 : restaurant.delivery_fee;
   const tax = Math.round(subtotal * 0.08 * 100) / 100;
-  const total = Math.round((subtotal + delivery_fee + tax) * 100) / 100;
+  const service_fee = APPTHRU_FEE;
+  const total = Math.round((subtotal + delivery_fee + tax + service_fee) * 100) / 100;
 
   const orderId = uuidv4();
   const pickupCode = type === 'pickup' ? generatePickupCode() : null;
@@ -237,12 +240,12 @@ app.post('/api/orders', orderLimiter, (req, res) => {
 
   db.prepare(`
     INSERT INTO orders (
-      id, restaurant_id, items, subtotal, delivery_fee, tax, total,
+      id, restaurant_id, items, subtotal, delivery_fee, tax, service_fee, total,
       delivery_address, order_type, pickup_code, customer_name, customer_phone, status
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    orderId, restaurant_id, JSON.stringify(items), subtotal, delivery_fee, tax, total,
+    orderId, restaurant_id, JSON.stringify(items), subtotal, delivery_fee, tax, service_fee, total,
     delivery_address || '', type, pickupCode, customer_name || '', customer_phone || '',
     initialStatus,
   );
@@ -411,17 +414,17 @@ app.post('/api/agent/message', async (req, res) => {
 
   // Special sentinel: agent wants to actually place the order now.
   if (result.reply === '__PLACE_ORDER__') {
-    const { subtotal, tax, total } = agent.summarize(session);
+    const { subtotal, tax, serviceFee, total } = agent.summarize(session);
     const orderId = uuidv4();
     const pickupCode = generatePickupCode();
     db.prepare(`
       INSERT INTO orders (
-        id, restaurant_id, items, subtotal, delivery_fee, tax, total,
+        id, restaurant_id, items, subtotal, delivery_fee, tax, service_fee, total,
         delivery_address, order_type, pickup_code, customer_name, customer_phone, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pickup', ?, ?, ?, 'preparing')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pickup', ?, ?, ?, 'preparing')
     `).run(
       orderId, session.restaurant.id, JSON.stringify(session.items),
-      subtotal, 0, tax, total, '', pickupCode,
+      subtotal, 0, tax, serviceFee, total, '', pickupCode,
       session.name, session.phone,
     );
     session.stage = 'placed';

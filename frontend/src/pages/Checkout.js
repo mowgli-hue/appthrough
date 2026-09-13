@@ -26,7 +26,8 @@ function Checkout() {
 
   const isPickup = orderType === 'pickup';
   const effectiveDeliveryFee = isPickup ? 0 : cart.deliveryFee;
-  const effectiveTotal = Math.round((subtotal + effectiveDeliveryFee + tax) * 100) / 100;
+  const APPTHRU_FEE = 1.0;
+  const effectiveTotal = Math.round((subtotal + effectiveDeliveryFee + tax + APPTHRU_FEE) * 100) / 100;
 
   const validPhone = (p) => p.replace(/\D/g, '').length >= 7;
 
@@ -171,6 +172,10 @@ function Checkout() {
             <div className="summary-row">
               <span>Tax</span>
               <span>${tax.toFixed(2)}</span>
+            </div>
+            <div className="summary-row">
+              <span>App-Thru Fee</span>
+              <span>${APPTHRU_FEE.toFixed(2)}</span>
             </div>
             <div className="summary-row total">
               <span>Total</span>

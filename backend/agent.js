@@ -150,11 +150,14 @@ function getSession(id, opts) {
 
 // --- Natural response helpers ----------------------------------------------
 
+const APPTHRU_FEE = Math.max(0, parseFloat(process.env.APPTHRU_FEE ?? '1.00') || 0);
+
 function summarize(session) {
   const subtotal = session.items.reduce((s, i) => s + i.price * i.quantity, 0);
   const tax = Math.round(subtotal * 0.08 * 100) / 100;
-  const total = Math.round((subtotal + tax) * 100) / 100;
-  return { subtotal, tax, total };
+  const serviceFee = APPTHRU_FEE;
+  const total = Math.round((subtotal + tax + serviceFee) * 100) / 100;
+  return { subtotal, tax, serviceFee, total };
 }
 
 function readBackOrder(session) {

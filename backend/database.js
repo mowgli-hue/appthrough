@@ -74,6 +74,7 @@ addCol('customer_name', 'TEXT');
 addCol('customer_phone', 'TEXT');
 addCol('ready_at', 'DATETIME');
 addCol('picked_up_at', 'DATETIME');
+addCol('service_fee', 'REAL DEFAULT 0');
 
 // Per-restaurant drive-thru config so any restaurant can onboard.
 const restaurantCols = db.prepare('PRAGMA table_info(restaurants)').all().map(c => c.name);
