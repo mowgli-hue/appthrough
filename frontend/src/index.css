@@ -4293,3 +4293,19 @@ img {
   margin: 0;
 }
 .kitchen-header-simple .kitchen-sound-toggle { margin-top: 0; }
+
+/* Customer note shown to the kitchen */
+.order-note {
+  background: #fff8e6;
+  border: 1px solid #f0d48a;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #7a5b00;
+  margin-bottom: 10px;
+}
+.order-note-input {
+  min-height: 56px;
+  resize: vertical;
+}

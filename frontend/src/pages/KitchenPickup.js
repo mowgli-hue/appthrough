@@ -161,6 +161,7 @@ function KitchenPickup() {
                   Placed {formatTime(order.created_at)}
                 </span>
               </div>
+              {order.note && <div className="order-note">📝 {order.note}</div>}
               <ul className="kitchen-items">
                 {order.items.map((item, i) => (
                   <li key={i}>

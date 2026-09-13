@@ -185,6 +185,7 @@ function MerchantDashboard() {
                   <span className="po-time">{formatTime(o.created_at)}</span>
                 </div>
                 <div className="po-customer">{o.customer_name || 'Guest'} · {o.customer_phone}</div>
+                {o.note && <div className="order-note">📝 {o.note}</div>}
                 <ul className="po-items">
                   {o.items.map((i, idx) => <li key={idx}>{i.quantity}× {i.name}</li>)}
                 </ul>

@@ -78,9 +78,10 @@ async function notifyRestaurantNewOrder(order, notificationPhone) {
   const items = (typeof order.items === 'string' ? JSON.parse(order.items) : order.items)
     .map(i => `${i.quantity}x ${i.name}`)
     .join(', ');
+  const noteTxt = order.note ? ` — 📝 "${order.note}"` : '';
   await sendSMS(
     notificationPhone,
-    `🔔 NEW ORDER ${order.pickup_code || ''} — ${items} — $${Number(order.total).toFixed(2)} — ${order.customer_name || 'Guest'}`
+    `🔔 NEW ORDER ${order.pickup_code || ''} — ${items} — $${Number(order.total).toFixed(2)} — ${order.customer_name || 'Guest'}${noteTxt}`
   );
 }
 

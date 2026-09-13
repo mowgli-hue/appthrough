@@ -139,7 +139,7 @@ app.post('/api/payments/confirm', async (req, res) => {
           }).catch(() => {});
         }
         sms.notifyRestaurantNewOrder(
-          { pickup_code: ord.pickup_code, items: ord.items, total: ord.total, customer_name: ord.customer_name },
+          { pickup_code: ord.pickup_code, items: ord.items, total: ord.total, customer_name: ord.customer_name, note: ord.note },
           ord.notification_phone,
         ).catch(() => {});
       }
@@ -238,6 +238,7 @@ app.post('/api/orders', orderLimiter, (req, res) => {
     customer_name,
     customer_phone,
   } = req.body;
+  const note = String(req.body.note || '').trim().slice(0, 300);
 
   if (!restaurant_id || !items || !items.length) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -270,13 +271,13 @@ app.post('/api/orders', orderLimiter, (req, res) => {
   db.prepare(`
     INSERT INTO orders (
       id, restaurant_id, items, subtotal, delivery_fee, tax, service_fee, total,
-      delivery_address, order_type, pickup_code, customer_name, customer_phone, status
+      delivery_address, order_type, pickup_code, customer_name, customer_phone, status, note
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     orderId, restaurant_id, JSON.stringify(items), subtotal, delivery_fee, tax, service_fee, total,
     delivery_address || '', type, pickupCode, customer_name || '', customer_phone || '',
-    initialStatus,
+    initialStatus, note,
   );
 
   // Notifications go out now for pay-at-pickup orders; card orders notify
@@ -291,7 +292,7 @@ app.post('/api/orders', orderLimiter, (req, res) => {
       }).catch(() => {});
     }
     sms.notifyRestaurantNewOrder(
-      { pickup_code: pickupCode, items, total, customer_name },
+      { pickup_code: pickupCode, items, total, customer_name, note },
       restaurant.notification_phone,
     ).catch(() => {});
   }

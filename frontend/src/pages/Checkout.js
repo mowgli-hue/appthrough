@@ -9,6 +9,7 @@ function Checkout() {
   const orderType = 'pickup';
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [note, setNote] = useState('');
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
 
@@ -91,6 +92,7 @@ function Checkout() {
           delivery_address: '',
           customer_name: name,
           customer_phone: phone,
+          note,
           pay_first: payingByCard,
         }),
       });
@@ -163,6 +165,14 @@ function Checkout() {
               onChange={(e) => setPhone(e.target.value)}
               style={{ marginTop: '0.5rem' }}
               required
+            />
+            <textarea
+              className="address-input order-note-input"
+              placeholder="Note for the kitchen (optional) — e.g. less sugar, no onions, extra spicy"
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, 300))}
+              rows={2}
+              style={{ marginTop: '0.5rem' }}
             />
           </div>
 
