@@ -189,8 +189,8 @@ function OrderConfirmation() {
 
         <div className="confirmation-details">
           <div className="detail-row">
-            <span>Order ID</span>
-            <span className="order-id">{order.id.slice(0, 8)}...</span>
+            <span>Name</span>
+            <span>{order.customer_name || 'Guest'}</span>
           </div>
           <div className="detail-row">
             <span>Restaurant</span>
