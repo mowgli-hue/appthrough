@@ -1,36 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { authHeaders, getToken } from '../utils/auth';
+import { playNewOrderChime, autoUnlockOnFirstTap } from '../utils/alertSound';
 import { formatTime } from '../utils/time';
 
-// Ascending two-tone ring, repeated — loud enough for a kitchen.
-function playRing(repeats = 3) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const notes = [880, 1174.66]; // A5, D6
-    for (let r = 0; r < repeats; r++) {
-      notes.forEach((freq, i) => {
-        const t = ctx.currentTime + r * 0.7 + i * 0.25;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(t);
-        osc.stop(t + 0.25);
-      });
-    }
-  } catch { /* no audio available */ }
-}
 
 function KitchenPickup() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(!getToken());
-  const [soundOn, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => localStorage.getItem('appthru_sound') !== 'off');
   const [newIds, setNewIds] = useState(() => new Set());
   const knownIdsRef = useRef(null); // null until first successful load
   const soundOnRef = useRef(false);
@@ -53,7 +32,7 @@ function KitchenPickup() {
         const fresh = data.filter(o => !knownIdsRef.current.has(o.id)).map(o => o.id);
         if (fresh.length > 0) {
           setNewIds(prev => new Set([...prev, ...fresh]));
-          if (soundOnRef.current) playRing();
+          if (soundOnRef.current) playNewOrderChime();
           navigator.vibrate?.([300, 150, 300]);
           if (window.Notification?.permission === 'granted') {
             new Notification('New pickup order!', { body: `${fresh.length} new order(s) in the queue` });
@@ -83,11 +62,14 @@ function KitchenPickup() {
     });
   };
 
+  useEffect(() => { autoUnlockOnFirstTap(); }, []);
+
   const toggleSound = () => {
     setSoundOn(prev => {
       const next = !prev;
+      localStorage.setItem('appthru_sound', next ? 'on' : 'off');
       if (next) {
-        playRing(1); // user gesture unlocks audio + confirms volume
+        playNewOrderChime(1); // user gesture unlocks audio + confirms volume
         window.Notification?.requestPermission?.();
       }
       return next;

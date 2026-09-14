@@ -1,30 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { authHeaders } from '../utils/auth';
+import { playNewOrderChime, autoUnlockOnFirstTap } from '../utils/alertSound';
 import { formatTime } from '../utils/time';
 
-// Same ring as the kitchen page — loud two-tone alert
-function playRing(repeats = 3) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const notes = [880, 1174.66];
-    for (let r = 0; r < repeats; r++) {
-      notes.forEach((freq, i) => {
-        const t = ctx.currentTime + r * 0.7 + i * 0.25;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(t);
-        osc.stop(t + 0.25);
-      });
-    }
-  } catch {}
-}
 
 function MerchantDashboard() {
   const { id } = useParams();
@@ -34,10 +13,11 @@ function MerchantDashboard() {
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
-  const [soundOn, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => localStorage.getItem('appthru_sound') !== 'off');
   const knownIdsRef = useRef(null);
   const soundOnRef = useRef(false);
   useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
+  useEffect(() => { autoUnlockOnFirstTap(); }, []);
 
   const loadStats = useCallback(() => {
     fetch(`/api/merchants/${id}/stats`, { headers: { ...authHeaders() } })
@@ -58,7 +38,7 @@ function MerchantDashboard() {
       if (knownIdsRef.current) {
         const fresh = list.filter(o => !knownIdsRef.current.has(o.id));
         if (fresh.length > 0) {
-          if (soundOnRef.current) playRing();
+          if (soundOnRef.current) playNewOrderChime();
           navigator.vibrate?.([300, 150, 300]);
         }
       }
@@ -130,7 +110,7 @@ function MerchantDashboard() {
         </div>
         <div className="portal-header-actions">
           <button className={`kitchen-sound-toggle ${soundOn ? 'on' : ''}`} onClick={() => {
-            setSoundOn(v => { const n = !v; if (n) playRing(1); return n; });
+            setSoundOn(v => { const n = !v; localStorage.setItem('appthru_sound', n ? 'on' : 'off'); if (n) playNewOrderChime(1); return n; });
             window.Notification?.requestPermission?.();
           }}>
             {soundOn ? '🔔 Sound on' : '🔕 Enable sound'}
