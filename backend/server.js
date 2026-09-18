@@ -542,6 +542,8 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   if (delivery_time !== undefined) { fields.push('delivery_time = ?'); values.push(String(delivery_time).slice(0, 30)); }
   if (notification_phone !== undefined) { fields.push('notification_phone = ?'); values.push(String(notification_phone).replace(/[^\d+]/g, '').slice(0, 20)); }
   if (req.body.image !== undefined) { fields.push('image = ?'); values.push(String(req.body.image).slice(0, 500)); }
+  if (req.body.name !== undefined && String(req.body.name).trim()) { fields.push('name = ?'); values.push(String(req.body.name).trim().slice(0, 80)); }
+  if (req.body.address !== undefined) { fields.push('address = ?'); values.push(String(req.body.address).slice(0, 160)); }
 
   if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
 
