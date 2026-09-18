@@ -37,6 +37,17 @@ function bell(c, freq, start, duration = 0.9, volume = 0.5) {
   });
 }
 
+// Repeating alarm: chimes every few seconds until stopped (staff acknowledge)
+let loopTimer = null;
+export function startAlertLoop() {
+  if (loopTimer) return;
+  playNewOrderChime(1);
+  loopTimer = setInterval(() => playNewOrderChime(1), 3500);
+}
+export function stopAlertLoop() {
+  if (loopTimer) { clearInterval(loopTimer); loopTimer = null; }
+}
+
 // "Ding-dong" twice — clearly audible, never harsh
 export function playNewOrderChime(times = 2) {
   try {

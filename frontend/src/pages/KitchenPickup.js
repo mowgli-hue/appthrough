@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { authHeaders, getToken, getRestaurantId } from '../utils/auth';
-import { playNewOrderChime, autoUnlockOnFirstTap } from '../utils/alertSound';
+import { playNewOrderChime, autoUnlockOnFirstTap, startAlertLoop, stopAlertLoop } from '../utils/alertSound';
 import { formatTime } from '../utils/time';
 
 
@@ -34,7 +34,6 @@ function KitchenPickup() {
         const fresh = data.filter(o => !knownIdsRef.current.has(o.id)).map(o => o.id);
         if (fresh.length > 0) {
           setNewIds(prev => new Set([...prev, ...fresh]));
-          if (soundOnRef.current) playNewOrderChime();
           navigator.vibrate?.([300, 150, 300]);
           if (window.Notification?.permission === 'granted') {
             new Notification('New pickup order!', { body: `${fresh.length} new order(s) in the queue` });
@@ -65,6 +64,13 @@ function KitchenPickup() {
   };
 
   useEffect(() => { autoUnlockOnFirstTap(); }, []);
+
+  // Keep ringing until every new order has been tapped (acknowledged)
+  useEffect(() => {
+    if (soundOn && newIds.size > 0) startAlertLoop();
+    else stopAlertLoop();
+    return () => stopAlertLoop();
+  }, [soundOn, newIds]);
 
   const loadMenu = useCallback(() => {
     const rid = getRestaurantId();
@@ -169,7 +175,7 @@ function KitchenPickup() {
               className={`kitchen-card status-${order.status} ${newIds.has(order.id) ? 'kitchen-card-new' : ''}`}
               onClick={() => acknowledge(order.id)}
             >
-              {newIds.has(order.id) && <div className="kitchen-new-badge">NEW ORDER — tap to acknowledge</div>}
+              {newIds.has(order.id) && <div className="kitchen-new-badge">NEW ORDER — tap to stop ringing</div>}
               <div className="kitchen-card-top">
                 <div className="kitchen-code">{order.pickup_code}</div>
                 <span className={`status-badge status-${order.status}`}>

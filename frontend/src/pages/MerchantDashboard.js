@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { authHeaders } from '../utils/auth';
-import { playNewOrderChime, autoUnlockOnFirstTap } from '../utils/alertSound';
+import { playNewOrderChime, autoUnlockOnFirstTap, startAlertLoop, stopAlertLoop } from '../utils/alertSound';
 import { formatTime } from '../utils/time';
 
 
@@ -14,10 +14,27 @@ function MerchantDashboard() {
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem('appthru_sound') !== 'off');
+  const [newIds, setNewIds] = useState(() => new Set());
   const knownIdsRef = useRef(null);
   const soundOnRef = useRef(false);
   useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
   useEffect(() => { autoUnlockOnFirstTap(); }, []);
+
+  // Keep ringing until every new order has been tapped (acknowledged)
+  useEffect(() => {
+    if (soundOn && newIds.size > 0) startAlertLoop();
+    else stopAlertLoop();
+    return () => stopAlertLoop();
+  }, [soundOn, newIds]);
+
+  const acknowledge = (orderId) => {
+    setNewIds(prev => {
+      if (!prev.has(orderId)) return prev;
+      const next = new Set(prev);
+      next.delete(orderId);
+      return next;
+    });
+  };
 
   const loadStats = useCallback(() => {
     fetch(`/api/merchants/${id}/stats`, { headers: { ...authHeaders() } })
@@ -38,7 +55,7 @@ function MerchantDashboard() {
       if (knownIdsRef.current) {
         const fresh = list.filter(o => !knownIdsRef.current.has(o.id));
         if (fresh.length > 0) {
-          if (soundOnRef.current) playNewOrderChime();
+          setNewIds(prev => new Set([...prev, ...fresh.map(o => o.id)]));
           navigator.vibrate?.([300, 150, 300]);
         }
       }
@@ -64,6 +81,7 @@ function MerchantDashboard() {
   }, [loadStats, loadOrders, loadMenu]);
 
   const updateStatus = async (orderId, status) => {
+    acknowledge(orderId);
     await fetch(`/api/orders/${orderId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -159,7 +177,12 @@ function MerchantDashboard() {
         ) : (
           <div className="portal-orders">
             {orders.map(o => (
-              <div key={o.id} className={`portal-order status-${o.status}`}>
+              <div
+                key={o.id}
+                className={`portal-order status-${o.status} ${newIds.has(o.id) ? 'kitchen-card-new' : ''}`}
+                onClick={() => acknowledge(o.id)}
+              >
+                {newIds.has(o.id) && <div className="kitchen-new-badge">NEW ORDER — tap to stop ringing</div>}
                 <div className="po-top">
                   <span className="po-code">{o.pickup_code}</span>
                   <span className="po-time">{formatTime(o.created_at)}</span>
