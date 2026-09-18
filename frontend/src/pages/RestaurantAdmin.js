@@ -15,6 +15,7 @@ function RestaurantAdmin() {
     agent_voice: 'friendly',
     drive_thru_enabled: true,
     notification_phone: '',
+    notification_email: '',
   });
 
   useEffect(() => {
@@ -28,6 +29,7 @@ function RestaurantAdmin() {
           agent_voice: data.agent_voice || 'friendly',
           drive_thru_enabled: data.drive_thru_enabled !== 0,
           notification_phone: data.notification_phone || '',
+          notification_email: data.notification_email || '',
         });
         setLoading(false);
       });
@@ -124,6 +126,19 @@ function RestaurantAdmin() {
               placeholder="+1 403 555 0123"
               value={form.notification_phone}
               onChange={e => update('notification_phone', e.target.value)}
+            />
+          </label>
+
+          <label className="admin-label">
+            New-Order Email Alerts
+            <small>We also email this address every time an order comes in</small>
+            <input
+              type="email"
+              className="admin-textarea"
+              style={{ minHeight: 'auto', padding: '10px 14px' }}
+              placeholder="orders@yourrestaurant.com"
+              value={form.notification_email}
+              onChange={e => update('notification_email', e.target.value)}
             />
           </label>
 

@@ -81,7 +81,7 @@ async function notifyRestaurantNewOrder(order, notificationPhone) {
   const noteTxt = order.note ? ` — 📝 "${order.note}"` : '';
   await sendSMS(
     notificationPhone,
-    `🔔 NEW ORDER ${order.pickup_code || ''} — ${items} — $${Number(order.total).toFixed(2)} — ${order.customer_name || 'Guest'}${noteTxt}`
+    `🔔 ${order.location_name ? order.location_name + ' — ' : ''}NEW ORDER ${order.pickup_code || ''} — ${items} — $${Number(order.total).toFixed(2)} — ${order.customer_name || 'Guest'}${noteTxt}`
   );
 }
 

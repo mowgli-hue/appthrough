@@ -5,6 +5,7 @@ const db = require('./database');
 const { v4: uuidv4 } = require('uuid');
 const agent = require('./agent');
 const sms = require('./sms');
+const email = require('./email');
 const payments = require('./payments');
 const auth = require('./auth');
 const rateLimit = require('express-rate-limit');
@@ -124,7 +125,7 @@ app.post('/api/payments/confirm', async (req, res) => {
 
       // If this order was held for payment, release it to the kitchen now
       const ord = db.prepare(`
-        SELECT o.*, r.name as restaurant_name, r.notification_phone
+        SELECT o.*, r.name as restaurant_name, r.notification_phone, r.notification_email
         FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
         WHERE o.id = ?
       `).get(payment.order_id);
@@ -139,8 +140,13 @@ app.post('/api/payments/confirm', async (req, res) => {
           }).catch(() => {});
         }
         sms.notifyRestaurantNewOrder(
-          { pickup_code: ord.pickup_code, items: ord.items, total: ord.total, customer_name: ord.customer_name, note: ord.note },
+          { pickup_code: ord.pickup_code, items: ord.items, total: ord.total, customer_name: ord.customer_name, note: ord.note, location_name: ord.restaurant_name },
           ord.notification_phone,
+        ).catch(() => {});
+        email.notifyRestaurantNewOrder(
+          { pickup_code: ord.pickup_code, items: ord.items, total: ord.total, customer_name: ord.customer_name, customer_phone: ord.customer_phone, note: ord.note },
+          ord.notification_email,
+          ord.restaurant_name,
         ).catch(() => {});
       }
     }
@@ -292,8 +298,13 @@ app.post('/api/orders', orderLimiter, (req, res) => {
       }).catch(() => {});
     }
     sms.notifyRestaurantNewOrder(
-      { pickup_code: pickupCode, items, total, customer_name, note },
+      { pickup_code: pickupCode, items, total, customer_name, note, location_name: restaurant.name },
       restaurant.notification_phone,
+    ).catch(() => {});
+    email.notifyRestaurantNewOrder(
+      { pickup_code: pickupCode, items, total, customer_name, customer_phone, note },
+      restaurant.notification_email,
+      restaurant.name,
     ).catch(() => {});
   }
 
@@ -479,10 +490,15 @@ app.post('/api/agent/message', async (req, res) => {
     }).catch(() => {});
 
     // Text the restaurant too
-    const freshRestaurant = db.prepare('SELECT notification_phone FROM restaurants WHERE id = ?').get(session.restaurant.id);
+    const freshRestaurant = db.prepare('SELECT name, notification_phone, notification_email FROM restaurants WHERE id = ?').get(session.restaurant.id);
     sms.notifyRestaurantNewOrder(
-      { pickup_code: pickupCode, items: session.items, total, customer_name: session.name },
+      { pickup_code: pickupCode, items: session.items, total, customer_name: session.name, location_name: freshRestaurant?.name },
       freshRestaurant?.notification_phone,
+    ).catch(() => {});
+    email.notifyRestaurantNewOrder(
+      { pickup_code: pickupCode, items: session.items, total, customer_name: session.name, customer_phone: session.phone },
+      freshRestaurant?.notification_email,
+      freshRestaurant?.name,
     ).catch(() => {});
 
     const confirmationReply = result.spokenConfirmation
@@ -542,6 +558,7 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   if (delivery_time !== undefined) { fields.push('delivery_time = ?'); values.push(String(delivery_time).slice(0, 30)); }
   if (notification_phone !== undefined) { fields.push('notification_phone = ?'); values.push(String(notification_phone).replace(/[^\d+]/g, '').slice(0, 20)); }
   if (req.body.image !== undefined) { fields.push('image = ?'); values.push(String(req.body.image).slice(0, 500)); }
+  if (req.body.notification_email !== undefined) { fields.push('notification_email = ?'); values.push(String(req.body.notification_email).trim().slice(0, 120)); }
   if (req.body.name !== undefined && String(req.body.name).trim()) { fields.push('name = ?'); values.push(String(req.body.name).trim().slice(0, 80)); }
   if (req.body.address !== undefined) { fields.push('address = ?'); values.push(String(req.body.address).slice(0, 160)); }
 

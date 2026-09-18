@@ -96,6 +96,7 @@ addRestaurantCol('pickup_instructions', 'TEXT');
 addRestaurantCol('drive_thru_enabled', 'INTEGER DEFAULT 1');
 addRestaurantCol('prep_minutes', 'INTEGER DEFAULT 15');
 addRestaurantCol('notification_phone', 'TEXT');
+addRestaurantCol('notification_email', 'TEXT');
 
 // Menu item availability (86'd items)
 const menuCols = db.prepare('PRAGMA table_info(menu_items)').all().map(c => c.name);
