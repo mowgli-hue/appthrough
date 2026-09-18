@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { authHeaders, getToken } from '../utils/auth';
+import { authHeaders, getToken, getRestaurantId } from '../utils/auth';
 import { playNewOrderChime, autoUnlockOnFirstTap } from '../utils/alertSound';
 import { formatTime } from '../utils/time';
 
@@ -10,6 +10,8 @@ function KitchenPickup() {
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(!getToken());
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem('appthru_sound') !== 'off');
+  const [view, setView] = useState('orders'); // orders | stock
+  const [menu, setMenu] = useState([]);
   const [newIds, setNewIds] = useState(() => new Set());
   const knownIdsRef = useRef(null); // null until first successful load
   const soundOnRef = useRef(false);
@@ -64,6 +66,25 @@ function KitchenPickup() {
 
   useEffect(() => { autoUnlockOnFirstTap(); }, []);
 
+  const loadMenu = useCallback(() => {
+    const rid = getRestaurantId();
+    if (!rid) return;
+    fetch(`/api/merchants/${rid}/menu`, { headers: { ...authHeaders() } })
+      .then(r => (r.ok ? r.json() : []))
+      .then(setMenu)
+      .catch(() => {});
+  }, []);
+  useEffect(() => { loadMenu(); }, [loadMenu]);
+
+  const toggleItem = async (item) => {
+    setMenu(m => m.map(x => (x.id === item.id ? { ...x, available: item.available ? 0 : 1 } : x)));
+    await fetch(`/api/menu-items/${item.id}/availability`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ available: !item.available }),
+    });
+  };
+
   const toggleSound = () => {
     setSoundOn(prev => {
       const next = !prev;
@@ -105,7 +126,10 @@ function KitchenPickup() {
   return (
     <div className="kitchen-page">
       <div className="kitchen-header kitchen-header-simple">
-        <h1>Orders</h1>
+        <div className="kitchen-views">
+          <button className={view === 'orders' ? 'kview active' : 'kview'} onClick={() => setView('orders')}>Orders</button>
+          <button className={view === 'stock' ? 'kview active' : 'kview'} onClick={() => { setView('stock'); loadMenu(); }}>Sold out</button>
+        </div>
         <button
           className={`kitchen-sound-toggle ${soundOn ? 'on' : ''}`}
           onClick={toggleSound}
@@ -114,7 +138,24 @@ function KitchenPickup() {
         </button>
       </div>
 
-      {orders.length === 0 ? (
+      {view === 'stock' && (
+        <div className="portal-menu">
+          <p className="portal-hint">Flip the toggle when something runs out — customers stop seeing it instantly.</p>
+          {menu.map(item => (
+            <div key={item.id} className={`portal-menu-item ${item.available ? '' : 'sold-out'}`}>
+              <div className="pmi-info">
+                <strong>{item.name}</strong>
+                <span>{item.category}{item.available ? '' : ' · SOLD OUT'}</span>
+              </div>
+              <button className={`availability-toggle ${item.available ? 'on' : ''}`} onClick={() => toggleItem(item)}>
+                <span className="toggle-knob" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {view === 'orders' && (orders.length === 0 ? (
         <div className="no-results">
           <span className="no-results-icon">🧑‍🍳</span>
           <h2>No pickup orders in the queue</h2>
@@ -172,7 +213,7 @@ function KitchenPickup() {
             </div>
           ))}
         </div>
-      )}
+      ))}
     </div>
   );
 }

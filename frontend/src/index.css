@@ -4309,3 +4309,21 @@ img {
   min-height: 56px;
   resize: vertical;
 }
+
+/* Kitchen view switcher (Orders / Sold out) */
+.kitchen-views { display: flex; gap: 6px; }
+.kview {
+  padding: 9px 18px;
+  border-radius: 20px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #666;
+  cursor: pointer;
+}
+.kview.active {
+  background: var(--primary, #00cc6a);
+  border-color: var(--primary, #00cc6a);
+  color: #fff;
+}
