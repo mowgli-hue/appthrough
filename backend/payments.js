@@ -21,7 +21,7 @@ function publishableKey() {
   return process.env.STRIPE_PUBLISHABLE_KEY || null;
 }
 
-async function createPaymentIntent(amountDollars, metadata = {}, methodType = 'card') {
+async function createPaymentIntent(amountDollars, metadata = {}, methodType = 'card', description = '') {
   const amountCents = Math.round(amountDollars * 100);
 
   if (!stripe) {
@@ -42,6 +42,7 @@ async function createPaymentIntent(amountDollars, metadata = {}, methodType = 'c
       metadata,
       capture_method: 'automatic',
     };
+    if (description) params.description = description;
     if (methodType === 'card_present') {
       params.payment_method_types = ['card_present']; // physical terminals
     } else {

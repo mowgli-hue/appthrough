@@ -123,7 +123,20 @@ app.post('/api/payments/create', async (req, res) => {
   const { orderId, amount } = req.body;
   if (!orderId || !amount) return res.status(400).json({ error: 'orderId and amount required' });
 
-  const result = await payments.createPaymentIntent(amount, { orderId });
+  // Label the charge with its location so Stripe payouts can be split per store
+  const ord = db.prepare(`
+    SELECT o.pickup_code, r.id as restaurant_id, r.name as restaurant_name
+    FROM orders o JOIN restaurants r ON o.restaurant_id = r.id WHERE o.id = ?
+  `).get(orderId);
+  const meta = {
+    orderId,
+    restaurant_id: ord?.restaurant_id || '',
+    location: ord?.restaurant_name || '',
+    pickup_code: ord?.pickup_code || '',
+  };
+  const description = ord ? `${ord.restaurant_name} · order ${ord.pickup_code}` : `App-Thru order ${orderId}`;
+
+  const result = await payments.createPaymentIntent(amount, meta, 'card', description);
   if (!result.success) return res.status(500).json({ error: result.error });
 
   const paymentId = uuidv4();
@@ -798,6 +811,27 @@ app.patch('/api/menu-items/:itemId/availability', auth.authMiddleware, (req, res
   const available = req.body.available ? 1 : 0;
   db.prepare('UPDATE menu_items SET available = ? WHERE id = ?').run(available, req.params.itemId);
   res.json({ id: item.id, available });
+});
+
+// Accounting export: this location's orders as CSV (open in Excel)
+app.get('/api/merchants/:id/orders.csv', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {
+  const rows = db.prepare(`
+    SELECT created_at, pickup_code, customer_name, status, payment_status,
+           subtotal, tax, service_fee, total, items
+    FROM orders
+    WHERE restaurant_id = ? AND status NOT IN ('awaiting_payment')
+    ORDER BY created_at DESC
+    LIMIT 5000
+  `).all(req.params.id);
+  const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = ['date_utc,pickup_code,customer,status,payment_status,subtotal,tax,appthru_fee,total,items'];
+  for (const r of rows) {
+    let items = '';
+    try { items = JSON.parse(r.items).map(i => `${i.quantity}x ${i.name}`).join('; '); } catch {}
+    lines.push([r.created_at, r.pickup_code, r.customer_name, r.status, r.payment_status,
+      r.subtotal, r.tax, r.service_fee, r.total, items].map(esc).join(','));
+  }
+  res.type('text/csv').set('Content-Disposition', 'attachment; filename="orders.csv"').send(lines.join('\n'));
 });
 
 // Get merchant dashboard stats

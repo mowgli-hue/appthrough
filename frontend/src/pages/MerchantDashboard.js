@@ -240,6 +240,16 @@ function MerchantDashboard() {
               <div className="insight-row"><span>📺 Kiosk screen</span><Link to={`/kiosk/${id}`} target="_blank" className="btn-secondary btn-sm">Open</Link></div>
               <div className="insight-row"><span>🍳 Kitchen tablet</span><Link to="/kitchen" target="_blank" className="btn-secondary btn-sm">Open</Link></div>
               <div className="insight-row"><span>🖨️ QR signs</span><Link to={`/setup/${id}`} className="btn-secondary btn-sm">Print</Link></div>
+              <div className="insight-row"><span>📒 Accounting export (CSV)</span>
+                <button className="btn-secondary btn-sm" onClick={async () => {
+                  const r = await fetch(`/api/merchants/${id}/orders.csv`, { headers: { ...authHeaders() } });
+                  const blob = await r.blob();
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = 'orders.csv';
+                  a.click();
+                }}>Download</button>
+              </div>
             </div>
           </div>
         </div>
