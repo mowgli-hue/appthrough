@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
 function Navbar({ onCartClick }) {
   const { itemCount } = useCart();
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const isHome = pathname === '/';
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -34,7 +36,7 @@ function Navbar({ onCartClick }) {
         </form>
 
         <div className="navbar-actions">
-          <Link to="/register" className="nav-link nav-link-register">List Your Restaurant</Link>
+          {isHome && <Link to="/register" className="nav-link nav-link-register">List Your Restaurant</Link>}
           <Link to="/orders" className="nav-link">Orders</Link>
           <button className="cart-button" onClick={onCartClick}>
             <span className="cart-icon">🛒</span>

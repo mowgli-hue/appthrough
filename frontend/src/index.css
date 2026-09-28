@@ -4327,3 +4327,57 @@ img {
   border-color: var(--primary, #00cc6a);
   color: #fff;
 }
+
+/* ===== Classic, compact typography pass ===== */
+
+/* Slimmer, quieter navbar */
+.navbar {
+  box-shadow: none !important;
+  border-bottom: 1px solid #eef1f6;
+}
+.navbar-container {
+  min-height: 52px !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+.brand-text {
+  font-size: 1.02rem !important;
+  letter-spacing: -0.01em;
+}
+.brand-icon { font-size: 1.1rem !important; }
+.nav-link,
+.nav-link-highlight,
+.nav-link-register {
+  font-size: 0.8rem !important;
+  padding: 0.32rem 0.6rem !important;
+  font-weight: 600 !important;
+}
+.cart-button { transform: scale(0.9); }
+.navbar-search input { font-size: 0.85rem !important; }
+
+/* Calmer, classic type across customer pages */
+body { font-size: 15px; }
+.restaurant-hero-content h1 {
+  font-size: 1.45rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
+}
+.restaurant-hero-meta { font-size: 0.8rem !important; }
+.restaurant-description { font-size: 0.8rem !important; }
+.menu-category-title {
+  font-size: 1.02rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+.menu-item-header h4 { font-size: 0.92rem !important; font-weight: 600 !important; }
+.menu-item-price { font-size: 0.9rem !important; font-weight: 700 !important; }
+.category-chip { font-size: 0.8rem !important; padding: 7px 14px !important; }
+.floating-cart-bar { font-size: 0.95rem !important; padding: 13px 16px !important; }
+
+/* Checkout: same calm scale */
+.checkout-main h1 { font-size: 1.35rem !important; }
+.checkout-section h2 { font-size: 1rem !important; }
+.order-summary h2 { font-size: 1rem !important; }
+.summary-row { font-size: 0.9rem !important; }
+.summary-row.total { font-size: 1.05rem !important; }
