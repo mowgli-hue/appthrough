@@ -36,13 +36,19 @@ async function createPaymentIntent(amountDollars, metadata = {}, methodType = 'c
   }
 
   try {
-    const intent = await stripe.paymentIntents.create({
+    const params = {
       amount: amountCents,
       currency: CURRENCY,
       metadata,
-      payment_method_types: [methodType], // 'card' online, 'card_present' for terminals
       capture_method: 'automatic',
-    });
+    };
+    if (methodType === 'card_present') {
+      params.payment_method_types = ['card_present']; // physical terminals
+    } else {
+      // Online: cards + Apple Pay + Google Pay + Link (remembered cards)
+      params.automatic_payment_methods = { enabled: true, allow_redirects: 'never' };
+    }
+    const intent = await stripe.paymentIntents.create(params);
     return {
       success: true,
       paymentIntentId: intent.id,
@@ -69,4 +75,4 @@ async function confirmPayment(paymentIntentId) {
   }
 }
 
-module.exports = { createPaymentIntent, confirmPayment, isConfigured, publishableKey };
+module.exports = { createPaymentIntent, confirmPayment, isConfigured, publishableKey, CURRENCY };

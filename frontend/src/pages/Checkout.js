@@ -13,12 +13,19 @@ function Checkout() {
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
 
-  // --- Stripe card payment (enabled when the server has keys configured) ---
+  // --- Stripe Payment Element: cards + Apple Pay + Google Pay + Link ---
   const [stripeReady, setStripeReady] = useState(false);
   const [payMethod, setPayMethod] = useState('pickup'); // becomes 'card' when Stripe loads
   const stripeRef = useRef(null);
-  const cardRef = useRef(null);
-  const cardMountRef = useRef(null);
+  const elementsRef = useRef(null);
+  const currencyRef = useRef('cad');
+  const payMountRef = useRef(null);
+
+  const isPickup = true;
+  const effectiveDeliveryFee = 0;
+  const APPTHRU_FEE = 0.99;
+  const effectiveTotal = Math.round((subtotal + effectiveDeliveryFee + tax + APPTHRU_FEE) * 100) / 100;
+  const amountCents = Math.round(effectiveTotal * 100);
 
   useEffect(() => {
     let cancelled = false;
@@ -26,6 +33,7 @@ function Checkout() {
       .then(r => r.json())
       .then(cfg => {
         if (cancelled || !cfg.enabled || !cfg.publishableKey) return;
+        currencyRef.current = (cfg.currency || 'cad').toLowerCase();
         const init = () => {
           if (cancelled || !window.Stripe) return;
           stripeRef.current = window.Stripe(cfg.publishableKey);
@@ -44,15 +52,27 @@ function Checkout() {
     return () => { cancelled = true; };
   }, []);
 
-  // Mount the card input whenever card payment is selected
+  // Mount the Payment Element (deferred intent: amount/currency now, intent at submit)
   useEffect(() => {
-    if (!stripeReady || payMethod !== 'card' || !cardMountRef.current) return;
-    const elements = stripeRef.current.elements();
-    const card = elements.create('card', { style: { base: { fontSize: '16px' } } });
-    card.mount(cardMountRef.current);
-    cardRef.current = card;
-    return () => { card.destroy(); cardRef.current = null; };
-  }, [stripeReady, payMethod]);
+    if (!stripeReady || !payMountRef.current || amountCents <= 0) return;
+    const elements = stripeRef.current.elements({
+      mode: 'payment',
+      amount: amountCents,
+      currency: currencyRef.current,
+      appearance: { variables: { colorPrimary: '#00cc6a', borderRadius: '10px' } },
+    });
+    const pe = elements.create('payment', { layout: 'accordion' });
+    pe.mount(payMountRef.current);
+    elementsRef.current = elements;
+    return () => { pe.destroy(); elementsRef.current = null; };
+  }, [stripeReady]); // amount updates handled separately below
+
+  // Keep the sheet amount in sync if the cart total changes
+  useEffect(() => {
+    if (elementsRef.current && amountCents > 0) {
+      elementsRef.current.update({ amount: amountCents });
+    }
+  }, [amountCents]);
 
   if (itemCount === 0) {
     return (
@@ -66,11 +86,6 @@ function Checkout() {
     );
   }
 
-  const isPickup = true;
-  const effectiveDeliveryFee = 0;
-  const APPTHRU_FEE = 0.99;
-  const effectiveTotal = Math.round((subtotal + effectiveDeliveryFee + tax + APPTHRU_FEE) * 100) / 100;
-
   const validPhone = (p) => p.replace(/\D/g, '').length >= 10;
 
   const handlePlaceOrder = async () => {
@@ -78,7 +93,13 @@ function Checkout() {
     if (!name.trim()) return setError('Please enter your name.');
     if (!validPhone(phone)) return setError('Please enter a valid 10-digit mobile number — we text you when your order is ready.');
 
-    const payingByCard = stripeReady && payMethod === 'card' && Boolean(cardRef.current);
+    const payingByCard = stripeReady && payMethod === 'card' && Boolean(elementsRef.current);
+
+    // Validate the payment sheet first (card details / wallet selection)
+    if (payingByCard) {
+      const { error: submitError } = await elementsRef.current.submit();
+      if (submitError) return setError(submitError.message);
+    }
 
     setPlacing(true);
     try {
@@ -113,8 +134,11 @@ function Checkout() {
         if (!payRes.ok || !pay.clientSecret) throw new Error(pay.error || 'Could not start payment');
 
         if (!String(pay.clientSecret).startsWith('dev_')) {
-          const result = await stripeRef.current.confirmCardPayment(pay.clientSecret, {
-            payment_method: { card: cardRef.current, billing_details: { name } },
+          const result = await stripeRef.current.confirmPayment({
+            elements: elementsRef.current,
+            clientSecret: pay.clientSecret,
+            confirmParams: { return_url: window.location.origin + '/order/' + order.id },
+            redirect: 'if_required',
           });
           if (result.error) throw new Error(result.error.message);
         }
@@ -197,8 +221,8 @@ function Checkout() {
             <h2>Order Summary</h2>
             {stripeReady && (
               <div className="pay-method">
-                <div className="pay-option selected">💳 Card payment</div>
-                <div className="card-element-box" ref={cardMountRef} />
+                <div className="pay-option selected">💳 Pay — card, Apple Pay, Google Pay</div>
+                <div className="card-element-box" ref={payMountRef} />
               </div>
             )}
             <div className="summary-row">

@@ -95,7 +95,28 @@ app.get('/api/auth/me', auth.authMiddleware, (req, res) => {
 
 // Tells the frontend whether real card payment is available (and the public key)
 app.get('/api/payments/config', (req, res) => {
-  res.json({ enabled: payments.isConfigured() && Boolean(payments.publishableKey()), publishableKey: payments.publishableKey() });
+  res.json({
+    enabled: payments.isConfigured() && Boolean(payments.publishableKey()),
+    publishableKey: payments.publishableKey(),
+    currency: payments.CURRENCY,
+  });
+});
+
+// Apple Pay domain verification: Stripe checks this exact path when you add
+// the domain under Settings -> Payment method domains. We serve Stripe's
+// canonical association file (cached in memory).
+let applePayFile = null;
+app.get('/.well-known/apple-developer-merchantid-domain-association', async (req, res) => {
+  try {
+    if (!applePayFile) {
+      const r = await fetch('https://stripe.com/files/apple-pay/apple-developer-merchantid-domain-association');
+      if (!r.ok) throw new Error('fetch failed');
+      applePayFile = Buffer.from(await r.arrayBuffer());
+    }
+    res.type('application/octet-stream').send(applePayFile);
+  } catch {
+    res.status(502).send('unavailable');
+  }
 });
 
 app.post('/api/payments/create', async (req, res) => {
