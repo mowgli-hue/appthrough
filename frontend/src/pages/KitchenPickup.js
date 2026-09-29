@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { authHeaders, getToken, getRestaurantId } from '../utils/auth';
 import { playNewOrderChime, autoUnlockOnFirstTap, startAlertLoop, stopAlertLoop } from '../utils/alertSound';
-import { formatTime } from '../utils/time';
+import { formatTime, timeAgo, minutesSince } from '../utils/time';
 
 
 function KitchenPickup() {
@@ -185,9 +185,8 @@ function KitchenPickup() {
               <div className="kitchen-meta">
                 <strong>{order.customer_name || 'Guest'}</strong>
                 <span>📞 {order.customer_phone}</span>
-                <span className="kitchen-restaurant">{order.restaurant_name}</span>
-                <span className="kitchen-time">
-                  Placed {formatTime(order.created_at)}
+                <span className={`kitchen-time ${order.status === 'preparing' && minutesSince(order.created_at) > 45 ? 'kitchen-time-late' : ''}`}>
+                  {timeAgo(order.created_at)} · {formatTime(order.created_at)}
                 </span>
               </div>
               {order.note && <div className="order-note">📝 {order.note}</div>}

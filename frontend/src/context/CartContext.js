@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer } from 'react';
+import React, { createContext, useContext, useReducer, useEffect } from 'react';
 
 const CartContext = createContext();
 
@@ -51,12 +51,18 @@ const cartReducer = (state, action) => {
 };
 
 export function CartProvider({ children }) {
-  const [cart, dispatch] = useReducer(cartReducer, {
-    items: [],
-    restaurantId: null,
-    restaurantName: null,
-    deliveryFee: 0,
+  const [cart, dispatch] = useReducer(cartReducer, undefined, () => {
+    // Survive refreshes: restore the cart saved in this browser
+    try {
+      const saved = JSON.parse(localStorage.getItem('appthru_cart') || 'null');
+      if (saved && Array.isArray(saved.items)) return saved;
+    } catch {}
+    return { items: [], restaurantId: null, restaurantName: null, deliveryFee: 0 };
   });
+
+  useEffect(() => {
+    try { localStorage.setItem('appthru_cart', JSON.stringify(cart)); } catch {}
+  }, [cart]);
 
   const addItem = (item, restaurant) => dispatch({ type: 'ADD_ITEM', payload: { item, restaurant } });
   const removeItem = (itemId) => dispatch({ type: 'REMOVE_ITEM', payload: itemId });

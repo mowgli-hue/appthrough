@@ -19,8 +19,7 @@ function MenuItem({ item, restaurant }) {
       )}
       <div className="menu-item-info">
         <div className="menu-item-header">
-          <h4>{item.name}</h4>
-          {item.popular === 1 && <span className="popular-badge">Popular</span>}
+          <h4>{item.name}{item.popular === 1 && <span className="popular-badge">Popular</span>}</h4>
         </div>
         {item.description && <p className="menu-item-description">{item.description}</p>}
         <p className="menu-item-price">${item.price.toFixed(2)}</p>

@@ -24,3 +24,20 @@ export function formatDate(ts) {
   if (!d || isNaN(d)) return '';
   return d.toLocaleDateString('en-CA', { timeZone: TZ, month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
+
+// "3 min ago" style age for kitchen cards
+export function timeAgo(ts) {
+  const d = parseDbDate(ts);
+  if (!d || isNaN(d)) return '';
+  const mins = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + ' min ago';
+  const h = Math.floor(mins / 60);
+  return h + 'h ' + (mins % 60) + 'm ago';
+}
+
+export function minutesSince(ts) {
+  const d = parseDbDate(ts);
+  if (!d || isNaN(d)) return 0;
+  return Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+}

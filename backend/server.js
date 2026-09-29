@@ -403,6 +403,7 @@ app.get('/api/pickup-orders', auth.authMiddleware, (req, res) => {
     FROM orders o
     JOIN restaurants r ON o.restaurant_id = r.id
     WHERE o.order_type = 'pickup' AND o.status NOT IN ('picked_up', 'cancelled', 'awaiting_payment')
+      AND o.created_at >= datetime('now', '-12 hours')
       AND o.restaurant_id = ?
     ORDER BY o.created_at ASC
   `).all(req.merchant.restaurantId);

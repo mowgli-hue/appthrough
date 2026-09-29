@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { authHeaders } from '../utils/auth';
 import { playNewOrderChime, autoUnlockOnFirstTap, startAlertLoop, stopAlertLoop } from '../utils/alertSound';
-import { formatTime } from '../utils/time';
+import { timeAgo, minutesSince } from '../utils/time';
 
 
 function MerchantDashboard() {
@@ -185,7 +185,7 @@ function MerchantDashboard() {
                 {newIds.has(o.id) && <div className="kitchen-new-badge">NEW ORDER — tap to stop ringing</div>}
                 <div className="po-top">
                   <span className="po-code">{o.pickup_code}</span>
-                  <span className="po-time">{formatTime(o.created_at)}</span>
+                  <span className={`po-time ${o.status === 'preparing' && minutesSince(o.created_at) > 45 ? 'kitchen-time-late' : ''}`}>{timeAgo(o.created_at)}</span>
                 </div>
                 <div className="po-customer">{o.customer_name || 'Guest'} · {o.customer_phone}</div>
                 {o.note && <div className="order-note">📝 {o.note}</div>}

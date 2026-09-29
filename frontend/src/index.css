@@ -4381,3 +4381,50 @@ body { font-size: 15px; }
 .order-summary h2 { font-size: 1rem !important; }
 .summary-row { font-size: 0.9rem !important; }
 .summary-row.total { font-size: 1.05rem !important; }
+
+/* ===== Designer pass: hero, badges, kitchen timing ===== */
+
+/* Hero grows with the name — never clips "The Chai Bar — King George" */
+.restaurant-hero {
+  height: auto !important;
+  min-height: 170px;
+}
+.restaurant-hero img {
+  position: absolute;
+  inset: 0;
+  object-fit: cover;
+}
+.restaurant-hero-overlay {
+  position: relative !important;
+  padding: 40px 18px 16px !important;
+}
+.restaurant-hero-content h1 {
+  white-space: normal;
+  line-height: 1.2 !important;
+}
+/* Meta stays on one tidy line */
+.restaurant-hero-meta {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.restaurant-hero-meta span { flex: 0 0 auto; }
+
+/* Popular badge rides beside the name without forcing ugly wraps */
+.menu-item-header h4 .popular-badge {
+  margin-left: 8px;
+  vertical-align: 2px;
+}
+
+/* Kitchen: overdue orders shout */
+.kitchen-time-late {
+  color: #c0392b !important;
+  font-weight: 800 !important;
+}
+@media (max-width: 480px) {
+  .restaurant-hero { min-height: 150px; }
+}
