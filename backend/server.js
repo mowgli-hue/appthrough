@@ -459,6 +459,22 @@ app.get('/api/orders', (req, res) => {
   res.json(orders);
 });
 
+// Public order-status board for an in-store screen: codes + first names only
+app.get('/api/restaurants/:id/board', (req, res) => {
+  const rows = db.prepare(`
+    SELECT pickup_code, customer_name, status FROM orders
+    WHERE restaurant_id = ? AND order_type = 'pickup'
+      AND status IN ('preparing', 'ready')
+      AND created_at >= datetime('now', '-12 hours')
+    ORDER BY created_at ASC
+  `).all(req.params.id);
+  res.json(rows.map(r => ({
+    code: r.pickup_code,
+    name: (r.customer_name || '').trim().split(/\s+/)[0] || '',
+    status: r.status,
+  })));
+});
+
 // --- AI Drive-through voice agent ----------------------------------------
 
 // Start a new voice ordering session (optionally scoped to a restaurant for kiosk mode)

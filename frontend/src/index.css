@@ -4428,3 +4428,67 @@ body { font-size: 15px; }
 @media (max-width: 480px) {
   .restaurant-hero { min-height: 150px; }
 }
+
+/* ===== In-store order status board ===== */
+.board-page {
+  min-height: 100vh;
+  background: #0f1420;
+  color: #fff;
+  padding: 22px 26px;
+  font-family: inherit;
+}
+.board-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.board-brand { font-size: 1.5rem; font-weight: 800; }
+.board-title { font-size: 1rem; color: #7f8aa3; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+.board-columns {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 22px;
+}
+.board-col {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 20px;
+  padding: 18px;
+}
+.board-col-ready { background: rgba(0, 204, 106, 0.10); }
+.board-col-title {
+  font-size: 1.25rem;
+  margin: 0 0 14px;
+  color: #aeb7c9;
+}
+.board-col-ready .board-col-title { color: #4be08e; }
+.board-card {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  margin-bottom: 10px;
+}
+.board-code {
+  font-size: 2.3rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+.board-name { font-size: 1.15rem; color: #aeb7c9; text-transform: capitalize; }
+.board-card-ready {
+  background: #00cc6a;
+  color: #04321b;
+  animation: boardPulse 2.2s ease-in-out infinite;
+}
+.board-card-ready .board-name { color: #04321b; opacity: 0.75; }
+@keyframes boardPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 204, 106, 0.55); }
+  50% { box-shadow: 0 0 0 16px rgba(0, 204, 106, 0); }
+}
+.board-empty { color: #4a5570; font-size: 1.6rem; margin: 8px 4px; }
+@media (max-width: 700px) {
+  .board-columns { grid-template-columns: 1fr; }
+  .board-code { font-size: 1.9rem; }
+}

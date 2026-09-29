@@ -18,6 +18,7 @@ import MerchantRegister from './pages/MerchantRegister';
 import MerchantLogin from './pages/MerchantLogin';
 import MerchantDashboard from './pages/MerchantDashboard';
 import SetupGuide from './pages/SetupGuide';
+import OrderBoard from './pages/OrderBoard';
 
 // Merchant/staff screens get a clean portal chrome instead of the
 // customer navbar (no search, cart, or 'List Your Restaurant').
@@ -25,7 +26,7 @@ function Shell() {
   const [cartOpen, setCartOpen] = React.useState(false);
   const { pathname } = useLocation();
   const isMerchantArea = /^\/(merchant|admin|kitchen|login|setup)/.test(pathname);
-  const isKiosk = pathname.startsWith('/kiosk');
+  const isKiosk = pathname.startsWith('/kiosk') || pathname.startsWith('/board');
 
   return (
         <div className="app">
@@ -48,6 +49,7 @@ function Shell() {
               <Route path="/voice" element={<VoiceOrder />} />
               <Route path="/kiosk" element={<KioskSelect />} />
               <Route path="/kiosk/:restaurantId" element={<Kiosk />} />
+              <Route path="/board/:restaurantId" element={<OrderBoard />} />
               <Route path="/admin/:id" element={<RestaurantAdmin />} />
               <Route path="/register" element={<MerchantRegister />} />
               <Route path="/login" element={<MerchantLogin />} />
