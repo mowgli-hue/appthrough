@@ -910,6 +910,21 @@ app.patch('/api/menu-items/:itemId/availability', auth.authMiddleware, (req, res
 });
 
 // Accounting export: this location's orders as CSV (open in Excel)
+// Full order history (JSON) for the merchant portal
+app.get('/api/merchants/:id/orders', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 200));
+  const orders = db.prepare(`
+    SELECT id, pickup_code, customer_name, items, subtotal, tax, service_fee, total,
+           status, payment_status, order_type, note, created_at, ready_at, picked_up_at
+    FROM orders
+    WHERE restaurant_id = ? AND status != 'awaiting_payment'
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(req.params.id, limit);
+  orders.forEach(o => { try { o.items = JSON.parse(o.items); } catch { o.items = []; } });
+  res.json(orders);
+});
+
 app.get('/api/merchants/:id/orders.csv', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {
   const rows = db.prepare(`
     SELECT created_at, pickup_code, customer_name, status, payment_status,

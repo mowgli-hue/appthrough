@@ -11,6 +11,8 @@ function MerchantDashboard() {
   const [data, setData] = useState(null);
   const [orders, setOrders] = useState([]);
   const [menu, setMenu] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem('appthru_sound') !== 'off');
@@ -35,6 +37,14 @@ function MerchantDashboard() {
       return next;
     });
   };
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/merchants/${id}/orders?limit=300`, { headers: { ...authHeaders() } });
+      if (res.ok) { setHistory(await res.json()); setHistoryLoaded(true); }
+    } catch {}
+  }, [id]);
+  useEffect(() => { if (tab === 'history' && !historyLoaded) loadHistory(); }, [tab, historyLoaded, loadHistory]);
 
   const loadStats = useCallback(() => {
     fetch(`/api/merchants/${id}/stats`, { headers: { ...authHeaders() } })
@@ -162,6 +172,7 @@ function MerchantDashboard() {
         <button className={tab === 'orders' ? 'portal-tab active' : 'portal-tab'} onClick={() => setTab('orders')}>
           Live Orders {orders.length > 0 && <span className="tab-badge">{orders.length}</span>}
         </button>
+        <button className={tab === 'history' ? 'portal-tab active' : 'portal-tab'} onClick={() => setTab('history')}>History</button>
         <button className={tab === 'insights' ? 'portal-tab active' : 'portal-tab'} onClick={() => setTab('insights')}>Insights</button>
         <button className={tab === 'menu' ? 'portal-tab active' : 'portal-tab'} onClick={() => setTab('menu')}>Menu</button>
       </div>
@@ -208,6 +219,33 @@ function MerchantDashboard() {
       )}
 
       {/* ---- INSIGHTS ---- */}
+      {tab === 'history' && (
+        <div className="history-panel">
+          <div className="history-head">
+            <span>{history.length} orders (newest first)</span>
+            <button className="btn-secondary btn-sm" onClick={() => { setHistoryLoaded(false); loadHistory(); }}>Refresh</button>
+          </div>
+          {!historyLoaded && <p className="history-empty">Loading…</p>}
+          {historyLoaded && history.length === 0 && <p className="history-empty">No orders yet.</p>}
+          {history.map(o => (
+            <div key={o.id} className="history-row">
+              <div className="history-main">
+                <span className="history-code">{o.pickup_code}</span>
+                <span className="history-name">{o.customer_name || '—'}</span>
+                {o.order_type === 'dinein' && <span className="dinein-badge">DINE-IN</span>}
+                <span className={`history-status hs-${o.status}`}>{o.status.replace('_',' ')}</span>
+                <span className="history-total">${Number(o.total).toFixed(2)}</span>
+              </div>
+              <div className="history-sub">
+                <span>{(o.items || []).map(i => `${i.quantity}× ${i.name}`).join(', ')}</span>
+                <span className="history-time">{timeAgo(o.created_at)}</span>
+              </div>
+              {o.note && <div className="history-note">📝 {o.note}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
       {tab === 'insights' && (
         <div className="portal-insights">
           <div className="insight-card">
