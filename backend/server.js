@@ -72,6 +72,18 @@ app.post('/api/auth/register', authLimiter, (req, res) => {
   const { email, password, restaurantId } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+
+  // SECURITY: adding a login to an EXISTING restaurant is only allowed for
+  // someone already signed in as that restaurant (invite model). Without
+  // this, anyone could bind an account to any restaurant id and take it over.
+  if (restaurantId) {
+    const header = req.headers.authorization || '';
+    const decoded = header.startsWith('Bearer ') ? auth.verifyToken(header.slice(7)) : null;
+    if (!decoded || decoded.restaurantId !== restaurantId) {
+      return res.status(403).json({ error: 'Sign in as this restaurant to add another login' });
+    }
+  }
+
   const result = auth.registerMerchant(email, password, restaurantId || null);
   if (result.error) return res.status(409).json({ error: result.error });
   res.status(201).json(result);
@@ -120,14 +132,19 @@ app.get('/.well-known/apple-developer-merchantid-domain-association', async (req
 });
 
 app.post('/api/payments/create', async (req, res) => {
-  const { orderId, amount } = req.body;
-  if (!orderId || !amount) return res.status(400).json({ error: 'orderId and amount required' });
+  const { orderId } = req.body;
+  if (!orderId) return res.status(400).json({ error: 'orderId required' });
 
-  // Label the charge with its location so Stripe payouts can be split per store
+  // SECURITY: the charge amount is read from the order itself — a client
+  // could otherwise create an intent for less than the order total.
   const ord = db.prepare(`
-    SELECT o.pickup_code, r.id as restaurant_id, r.name as restaurant_name
+    SELECT o.pickup_code, o.total, o.payment_status, r.id as restaurant_id, r.name as restaurant_name
     FROM orders o JOIN restaurants r ON o.restaurant_id = r.id WHERE o.id = ?
   `).get(orderId);
+  if (!ord) return res.status(404).json({ error: 'Order not found' });
+  if (ord.payment_status === 'paid') return res.status(409).json({ error: 'Order is already paid' });
+  const amount = ord.total;
+
   const meta = {
     orderId,
     restaurant_id: ord?.restaurant_id || '',
@@ -441,6 +458,11 @@ app.get('/api/orders/:id', (req, res) => {
   } else if (order.order_type === 'pickup' && order.status === 'ready') {
     order.queue_position = 0;
     order.estimated_minutes = 0;
+  }
+
+  // Minimize exposed PII on this public-by-link endpoint
+  if (order.customer_phone) {
+    order.customer_phone = '•••••' + String(order.customer_phone).slice(-4);
   }
 
   res.json(order);
