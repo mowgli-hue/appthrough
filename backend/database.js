@@ -98,6 +98,12 @@ addRestaurantCol('prep_minutes', 'INTEGER DEFAULT 15');
 addRestaurantCol('notification_phone', 'TEXT');
 addRestaurantCol('notification_email', 'TEXT');
 
+// Size/portion options per item (JSON: [{"name":"Regular","price":3.29}, ...])
+const menuCols0 = db.prepare('PRAGMA table_info(menu_items)').all().map(c => c.name);
+if (!menuCols0.includes('options')) {
+  db.exec('ALTER TABLE menu_items ADD COLUMN options TEXT');
+}
+
 // Menu item availability (86'd items)
 const menuCols = db.prepare('PRAGMA table_info(menu_items)').all().map(c => c.name);
 if (!menuCols.includes('available')) {

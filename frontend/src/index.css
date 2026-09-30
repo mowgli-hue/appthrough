@@ -4492,3 +4492,24 @@ body { font-size: 15px; }
   .board-columns { grid-template-columns: 1fr; }
   .board-code { font-size: 1.9rem; }
 }
+
+/* ===== Size / portion options ===== */
+.option-rows {
+  margin-top: 10px;
+  border-top: 1px dashed #e8ecf3;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.option-name { font-weight: 600; font-size: 0.88rem; min-width: 74px; }
+.option-price { color: #667; font-size: 0.85rem; flex: 1; }
+.add-btn-sm { width: 32px !important; height: 32px !important; min-width: 32px; font-size: 1.1rem; }
+.add-btn-open { background: #1a1a2e !important; box-shadow: none; }
+.option-rows .item-stepper { padding: 2px; }
+.option-rows .stepper-btn { width: 26px; height: 26px; font-size: 1rem; }

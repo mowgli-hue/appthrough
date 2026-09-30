@@ -325,7 +325,7 @@ function Kiosk() {
   }, []);
 
   const orderTotal = state?.items?.reduce((s, i) => s + i.price * i.quantity, 0) || 0;
-  const tax = Math.round(orderTotal * 0.08 * 100) / 100;
+  const tax = Math.round(orderTotal * 0.05 * 100) / 100;
   const grandTotal = Math.round((orderTotal + tax) * 100) / 100;
 
   if (!restaurant) {

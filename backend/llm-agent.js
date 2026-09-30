@@ -15,9 +15,18 @@ function menuLines(restaurantId) {
   const items = db.prepare(
     'SELECT name, price, category, description, popular FROM menu_items WHERE restaurant_id = ? AND available != 0 ORDER BY category, name'
   ).all(restaurantId);
-  return items.map(i =>
-    `- ${i.name} — $${i.price.toFixed(2)} [${i.category}]${i.popular ? ' (popular)' : ''}${i.description ? ` — ${i.description}` : ''}`
-  ).join('\n');
+  const lines = [];
+  for (const i of items) {
+    let opts = null;
+    try { opts = i.options ? JSON.parse(i.options) : null; } catch {}
+    if (opts && opts.length) {
+      const sizes = opts.map(o => `${o.name} $${o.price.toFixed(2)}`).join(' / ');
+      lines.push(`- ${i.name} (${sizes}) [${i.category}]${i.popular ? ' (popular)' : ''} — order as "${i.name} (${opts[0].name})" etc.`);
+    } else {
+      lines.push(`- ${i.name} — $${i.price.toFixed(2)} [${i.category}]${i.popular ? ' (popular)' : ''}${i.description ? ` — ${i.description}` : ''}`);
+    }
+  }
+  return lines.join('\n');
 }
 
 function systemPrompt(session) {
@@ -41,7 +50,7 @@ RULES:
 - Take the order, then read the full order back with the total, and ask to confirm.
 - After they confirm the items, ask for their first name, then their phone number (for the ready-notification text). Repeat the phone number back to confirm it.
 - Only set "confirmed": true once they have confirmed items AND you have their name AND confirmed phone number.
-- Prices: use menu prices; 8% tax and a $0.99 App-Thru service fee are added automatically — when reading the order back, say the total is "plus tax and a 99 cent service fee".
+- Prices: use menu prices; 5% GST and a $0.99 App-Thru service fee are added automatically — when reading the order back, say the total is "plus tax and a 99 cent service fee".
 
 OUTPUT FORMAT — respond with ONLY a JSON object, no other text:
 {
@@ -63,10 +72,24 @@ function parseJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
+function expandVariants(items) {
+  const out = [];
+  for (const i of items) {
+    let opts = null;
+    try { opts = i.options ? JSON.parse(i.options) : null; } catch {}
+    if (opts && opts.length) {
+      for (const o of opts) out.push({ ...i, name: `${i.name} (${o.name})`, price: o.price });
+    } else {
+      out.push(i);
+    }
+  }
+  return out;
+}
+
 function matchMenuItem(name, restaurantId) {
   const norm = s => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
   const target = norm(name);
-  const items = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? AND available != 0').all(restaurantId);
+  const items = expandVariants(db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? AND available != 0').all(restaurantId));
   let exact = items.find(i => norm(i.name) === target);
   if (exact) return exact;
   return items.find(i => norm(i.name).includes(target) || target.includes(norm(i.name))) || null;

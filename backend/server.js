@@ -17,6 +17,18 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 // Flat App-Thru platform fee added to every order (dollars)
 const APPTHRU_FEE = Math.max(0, parseFloat(process.env.APPTHRU_FEE ?? '0.99') || 0);
+// Sales tax rate (BC food = 5% GST). Override with TAX_RATE env.
+const TAX_RATE = Math.max(0, parseFloat(process.env.TAX_RATE ?? '0.05') || 0);
+
+// Sanitize size/portion options: [{name, price}] (max 8), or null
+function cleanOptions(raw) {
+  if (!Array.isArray(raw)) return null;
+  const opts = raw
+    .filter(o => o && o.name && Number.isFinite(parseFloat(o.price)))
+    .slice(0, 8)
+    .map(o => ({ name: String(o.name).trim().slice(0, 30), price: Math.round(parseFloat(o.price) * 100) / 100 }));
+  return opts.length >= 2 ? JSON.stringify(opts) : null;
+}
 
 app.use(cors());
 app.use(express.json());
@@ -315,7 +327,7 @@ app.post('/api/orders', orderLimiter, (req, res) => {
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   // Walk-up pickup = no delivery fee (that's the whole point!)
   const delivery_fee = type === 'pickup' ? 0 : restaurant.delivery_fee;
-  const tax = Math.round(subtotal * 0.08 * 100) / 100;
+  const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
   const service_fee = APPTHRU_FEE;
   const total = Math.round((subtotal + delivery_fee + tax + service_fee) * 100) / 100;
 
@@ -767,8 +779,8 @@ app.post('/api/merchants/register', authLimiter, (req, res) => {
   // Add menu items (skip items with no name or invalid price)
   if (menuItems && menuItems.length) {
     const stmt = db.prepare(`
-      INSERT INTO menu_items (id, restaurant_id, name, description, price, image, category, popular)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO menu_items (id, restaurant_id, name, description, price, image, category, popular, options)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const item of menuItems) {
       const price = parseFloat(item.price);
@@ -782,6 +794,7 @@ app.post('/api/merchants/register', authLimiter, (req, res) => {
         item.image || '',
         item.category || 'Main',
         item.popular ? 1 : 0,
+        cleanOptions(item.options),
       );
     }
   }
@@ -822,8 +835,8 @@ app.put('/api/restaurants/:id/menu', auth.authMiddleware, requireRestaurantOwner
   // Remove old items and replace
   db.prepare('DELETE FROM menu_items WHERE restaurant_id = ?').run(req.params.id);
   const stmt = db.prepare(`
-    INSERT INTO menu_items (id, restaurant_id, name, description, price, image, category, popular)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO menu_items (id, restaurant_id, name, description, price, image, category, popular, options)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const item of menuItems) {
     stmt.run(
@@ -835,6 +848,7 @@ app.put('/api/restaurants/:id/menu', auth.authMiddleware, requireRestaurantOwner
       item.image || '',
       item.category || 'Main',
       item.popular ? 1 : 0,
+      cleanOptions(item.options),
     );
   }
 

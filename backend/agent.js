@@ -45,8 +45,22 @@ function bestMatchRestaurant(text) {
   return best;
 }
 
+function expandVariants(items) {
+  const out = [];
+  for (const i of items) {
+    let opts = null;
+    try { opts = i.options ? JSON.parse(i.options) : null; } catch {}
+    if (opts && opts.length) {
+      for (const o of opts) out.push({ ...i, id: i.id + '::' + o.name, name: `${i.name} (${o.name})`, price: o.price });
+    } else {
+      out.push(i);
+    }
+  }
+  return out;
+}
+
 function bestMatchMenuItems(text, restaurantId, limit = 3) {
-  const items = db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? AND available != 0').all(restaurantId);
+  const items = expandVariants(db.prepare('SELECT * FROM menu_items WHERE restaurant_id = ? AND available != 0').all(restaurantId));
   const scored = items
     .map(item => ({ item, score: fuzzyScore(text, item.name) + fuzzyScore(text, item.category || '') * 0.3 }))
     .filter(s => s.score > 0.25)
@@ -151,10 +165,11 @@ function getSession(id, opts) {
 // --- Natural response helpers ----------------------------------------------
 
 const APPTHRU_FEE = Math.max(0, parseFloat(process.env.APPTHRU_FEE ?? '0.99') || 0);
+const TAX_RATE = Math.max(0, parseFloat(process.env.TAX_RATE ?? '0.05') || 0);
 
 function summarize(session) {
   const subtotal = session.items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const tax = Math.round(subtotal * 0.08 * 100) / 100;
+  const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
   const serviceFee = APPTHRU_FEE;
   const total = Math.round((subtotal + tax + serviceFee) * 100) / 100;
   return { subtotal, tax, serviceFee, total };

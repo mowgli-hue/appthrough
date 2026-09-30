@@ -69,7 +69,7 @@ export function CartProvider({ children }) {
   const clearCart = () => dispatch({ type: 'CLEAR_CART' });
 
   const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = Math.round(subtotal * 0.08 * 100) / 100;
+  const tax = Math.round(subtotal * 0.05 * 100) / 100;
   const total = Math.round((subtotal + cart.deliveryFee + tax) * 100) / 100;
   const itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
 
