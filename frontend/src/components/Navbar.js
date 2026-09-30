@@ -21,7 +21,7 @@ function Navbar({ onCartClick }) {
     <nav className="navbar">
       <div className="navbar-container">
         <Link to="/" className="navbar-brand">
-          <span className="brand-icon">🛵</span>
+          <img className="brand-logo" src="/applogo.png" alt="App-Thru" />
           <span className="brand-text">App-Thru</span>
         </Link>
 
