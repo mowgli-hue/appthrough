@@ -493,10 +493,8 @@ img {
 }
 
 .add-btn.in-cart {
-  width: auto;
-  border-radius: 50px;
-  padding: 6px 14px;
-  font-size: 0.8rem;
+  /* premium pass: button stays a perfect circle; count renders inside it */
+  font-size: 1rem;
 }
 
 /* ===== Cart Sidebar ===== */
@@ -4594,3 +4592,43 @@ body { font-size: 15px; }
   box-shadow: 0 6px 16px rgba(10, 138, 67, .28); transition: transform .12s ease, filter .15s ease;
 }
 .sheet-add-btn:active { transform: scale(.97); filter: brightness(.95); }
+
+
+/* ===== Premium polish pass (Sep 30) ===== */
+/* Perfect-circle buttons, no ovals ever */
+.add-btn, .stepper-btn, .sheet-close {
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
+}
+.add-btn { font-variant-numeric: tabular-nums; }
+
+/* Stop iOS Safari from zooming the page when an input is tapped
+   (any input font under 16px triggers auto-zoom = the "screen resizes" bug) */
+input, select, textarea { font-size: 16px !important; }
+
+/* No sideways wiggle / horizontal scroll ever */
+html, body { overflow-x: hidden; width: 100%; }
+#root { overflow-x: clip; }
+img { max-width: 100%; }
+
+/* Crisper text + steadier layout */
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
+.menu-item-price, .sheet-option-price, .cart-line-price { font-variant-numeric: tabular-nums; }
+
+/* Card refinement: softer, deeper, more consistent */
+.menu-item {
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
+  border-radius: 16px;
+}
+.menu-item:hover { box-shadow: 0 6px 20px rgba(16, 24, 40, 0.08); }
+.menu-item-selected { border: 1.5px solid var(--primary, #00cc6a) !important; }
+
+/* Category chips: pill consistency */
+.category-chip, .chip { border-radius: 999px; }
+
+/* Tap feedback everywhere, no stuck hover states on touch */
+@media (hover: none) {
+  .add-btn:hover { transform: none; box-shadow: 0 3px 10px rgba(0, 204, 106, 0.35); }
+  .menu-item:hover { box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05); }
+}
