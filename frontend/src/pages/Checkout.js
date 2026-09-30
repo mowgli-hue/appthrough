@@ -60,9 +60,30 @@ function Checkout() {
       mode: 'payment',
       amount: amountCents,
       currency: currencyRef.current,
-      appearance: { variables: { colorPrimary: '#00cc6a', borderRadius: '10px' } },
+      appearance: {
+        variables: {
+          colorPrimary: '#00cc6a',
+          borderRadius: '12px',
+          fontSizeBase: '15px',
+          colorText: '#1a1a1a',
+          colorTextSecondary: '#777',
+          spacingUnit: '4px',
+        },
+        rules: {
+          '.AccordionItem': { border: '1.5px solid #e8e8e8', boxShadow: 'none' },
+          '.AccordionItem--selected': { borderColor: '#0a8a43', backgroundColor: '#f7fdf9' },
+          '.Input': { boxShadow: 'none', border: '1.5px solid #e4e4e4' },
+          '.Input:focus': { borderColor: '#0a8a43', boxShadow: '0 0 0 3px rgba(10,138,67,.12)' },
+        },
+      },
     });
-    const pe = elements.create('payment', { layout: 'accordion' });
+    const pe = elements.create('payment', {
+      // Premium: spaced expandable options with radio dots, minimal questions.
+      layout: { type: 'accordion', defaultCollapsed: false, radios: true, spacedAccordionItems: true },
+      // We already collect name + phone in our own form; never ask for address.
+      fields: { billingDetails: { name: 'never', phone: 'never', address: 'never' } },
+      terms: { card: 'never' },
+    });
     pe.mount(payMountRef.current);
     elementsRef.current = elements;
     return () => { pe.destroy(); elementsRef.current = null; };
@@ -139,7 +160,16 @@ function Checkout() {
           const result = await stripeRef.current.confirmPayment({
             elements: elementsRef.current,
             clientSecret: pay.clientSecret,
-            confirmParams: { return_url: window.location.origin + '/order/' + order.id },
+            confirmParams: {
+              return_url: window.location.origin + '/order/' + order.id,
+              payment_method_data: {
+                billing_details: {
+                  name: name.trim(),
+                  phone: phone.replace(/\D/g, ''),
+                  address: { country: 'CA' },
+                },
+              },
+            },
             redirect: 'if_required',
           });
           if (result.error) throw new Error(result.error.message);
