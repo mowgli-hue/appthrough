@@ -436,13 +436,37 @@ app.patch('/api/orders/:id/status', auth.authMiddleware, (req, res) => {
   res.json(updated);
 });
 
-// Get all pickup orders (for staff / kitchen view)
-app.get('/api/pickup-orders', auth.authMiddleware, (req, res) => {
+// Get all walk-up orders for staff / kitchen view (pickup AND dine-in)
+app.get('/api/pickup-orders', auth.authMiddleware, async (req, res) => {
+  // Safety net: if a customer paid but closed the page before the final
+  // confirm call, the order can be stuck in awaiting_payment. Reconcile the
+  // few most recent ones against Stripe and release any that actually paid.
+  try {
+    const stuck = db.prepare(`
+      SELECT o.id as order_id, p.id as payment_id, p.stripe_payment_intent as provider_payment_id
+      FROM orders o JOIN payments p ON p.order_id = o.id
+      WHERE o.restaurant_id = ? AND o.status = 'awaiting_payment'
+        AND o.created_at >= datetime('now', '-12 hours')
+      LIMIT 5
+    `).all(req.merchant.restaurantId);
+    for (const row of stuck) {
+      if (!row.provider_payment_id || String(row.provider_payment_id).startsWith('dev_')) continue;
+      const check = await payments.confirmPayment(row.provider_payment_id).catch(() => null);
+      if (check && check.success && check.status === 'succeeded') {
+        db.prepare("UPDATE payments SET status = 'succeeded' WHERE id = ?").run(row.payment_id);
+        db.prepare("UPDATE orders SET status = 'preparing', payment_status = 'paid', payment_id = ? WHERE id = ?")
+          .run(row.payment_id, row.order_id);
+        console.log('[reconcile] released stuck paid order', row.order_id);
+      }
+    }
+  } catch (e) { console.warn('[reconcile] skipped:', e.message); }
+
   const orders = db.prepare(`
     SELECT o.*, r.name as restaurant_name
     FROM orders o
     JOIN restaurants r ON o.restaurant_id = r.id
-    WHERE o.order_type = 'pickup' AND o.status NOT IN ('picked_up', 'cancelled', 'awaiting_payment')
+    WHERE o.order_type IN ('pickup', 'dinein')
+      AND o.status NOT IN ('picked_up', 'cancelled', 'awaiting_payment')
       AND o.created_at >= datetime('now', '-12 hours')
       AND o.restaurant_id = ?
     ORDER BY o.created_at ASC
@@ -466,10 +490,10 @@ app.get('/api/orders/:id', (req, res) => {
 
   order.items = JSON.parse(order.items);
 
-  if (order.order_type === 'pickup' && order.status === 'preparing') {
+  if ((order.order_type === 'pickup' || order.order_type === 'dinein') && order.status === 'preparing') {
     const ahead = db.prepare(`
       SELECT COUNT(*) as cnt FROM orders
-      WHERE order_type = 'pickup'
+      WHERE order_type IN ('pickup', 'dinein')
         AND status = 'preparing'
         AND restaurant_id = ?
         AND created_at < ?
@@ -516,7 +540,7 @@ app.get('/api/orders', (req, res) => {
 app.get('/api/restaurants/:id/board', (req, res) => {
   const rows = db.prepare(`
     SELECT pickup_code, customer_name, status FROM orders
-    WHERE restaurant_id = ? AND order_type = 'pickup'
+    WHERE restaurant_id = ? AND order_type IN ('pickup', 'dinein')
       AND status IN ('preparing', 'ready')
       AND created_at >= datetime('now', '-12 hours')
     ORDER BY created_at ASC
@@ -912,7 +936,7 @@ app.get('/api/merchants/:id/stats', auth.authMiddleware, requireRestaurantOwners
   if (!r) return res.status(404).json({ error: 'Restaurant not found' });
 
   const totalOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ? AND status NOT IN ('awaiting_payment','cancelled')").get(req.params.id).cnt;
-  const pickupOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ? AND order_type = 'pickup'").get(req.params.id).cnt;
+  const pickupOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ? AND order_type IN ('pickup','dinein')").get(req.params.id).cnt;
   const revenue = db.prepare("SELECT COALESCE(SUM(total), 0) as rev FROM orders WHERE restaurant_id = ? AND status NOT IN ('awaiting_payment','cancelled')").get(req.params.id).rev;
   const activeOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE restaurant_id = ? AND status IN ('preparing', 'ready', 'confirmed')").get(req.params.id).cnt;
   const menuCount = db.prepare('SELECT COUNT(*) as cnt FROM menu_items WHERE restaurant_id = ?').get(req.params.id).cnt;

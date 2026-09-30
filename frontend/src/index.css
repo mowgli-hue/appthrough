@@ -4632,3 +4632,12 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   .add-btn:hover { transform: none; box-shadow: 0 3px 10px rgba(0, 204, 106, 0.35); }
   .menu-item:hover { box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05); }
 }
+
+
+/* One-time Link explainer at checkout */
+.link-tip {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: #f2fbf6; border: 1px solid #cdeeda; border-radius: 12px;
+  padding: 10px 12px; margin-bottom: 12px; font-size: 0.83rem; color: #24513a; line-height: 1.45;
+}
+.link-tip-icon { font-size: 1rem; line-height: 1.3; }

@@ -79,7 +79,7 @@ function Checkout() {
     });
     const pe = elements.create('payment', {
       // Premium: spaced expandable options with radio dots, minimal questions.
-      layout: { type: 'accordion', defaultCollapsed: false, radios: true, spacedAccordionItems: true },
+      layout: { type: 'accordion', defaultCollapsed: true, radios: true, spacedAccordionItems: true },
       // We already collect name + phone in our own form; never ask for address.
       fields: { billingDetails: { name: 'never', phone: 'never', address: 'never' } },
       terms: { card: 'never' },
@@ -273,6 +273,10 @@ function Checkout() {
             {stripeReady && (
               <div className="pay-method">
                 <div className="pay-option selected">💳 Pay — card, Apple Pay, Google Pay</div>
+                <div className="link-tip">
+                  <span className="link-tip-icon">⚡</span>
+                  <span><strong>First time?</strong> Pick <strong>Link</strong> below to save your card securely — next visit it’s one-tap checkout, no typing your card again.</span>
+                </div>
                 <div className="card-element-box" ref={payMountRef} />
               </div>
             )}
