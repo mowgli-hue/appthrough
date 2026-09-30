@@ -177,7 +177,7 @@ function KitchenPickup() {
             >
               {newIds.has(order.id) && <div className="kitchen-new-badge">NEW ORDER — tap to stop ringing</div>}
               <div className="kitchen-card-top">
-                <div className="kitchen-code">{order.pickup_code}</div>
+                <div className="kitchen-code">{order.pickup_code}{order.order_type === 'dinein' && <span className="dinein-badge">DINE-IN</span>}</div>
                 <span className={`status-badge status-${order.status}`}>
                   {order.status}
                 </span>

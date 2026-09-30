@@ -320,9 +320,9 @@ app.post('/api/orders', orderLimiter, (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  const type = order_type === 'pickup' ? 'pickup' : 'delivery';
+  const type = order_type === 'dinein' ? 'dinein' : (order_type === 'pickup' ? 'pickup' : 'delivery');
 
-  if (type === 'pickup' && !customer_phone) {
+  if ((type === 'pickup' || type === 'dinein') && !customer_phone) {
     return res.status(400).json({ error: 'Phone number is required for walk-up pickup' });
   }
 
@@ -333,16 +333,16 @@ app.post('/api/orders', orderLimiter, (req, res) => {
 
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   // Walk-up pickup = no delivery fee (that's the whole point!)
-  const delivery_fee = type === 'pickup' ? 0 : restaurant.delivery_fee;
+  const delivery_fee = type !== 'delivery' ? 0 : restaurant.delivery_fee;
   const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
   const service_fee = APPTHRU_FEE;
   const total = Math.round((subtotal + delivery_fee + tax + service_fee) * 100) / 100;
 
   const orderId = uuidv4();
-  const pickupCode = type === 'pickup' ? generatePickupCode() : null;
+  const pickupCode = type !== 'delivery' ? generatePickupCode() : null;
   // Card-paid orders stay hidden from the kitchen until payment succeeds
   const payFirst = Boolean(req.body.pay_first);
-  const initialStatus = payFirst ? 'awaiting_payment' : (type === 'pickup' ? 'preparing' : 'confirmed');
+  const initialStatus = payFirst ? 'awaiting_payment' : (type !== 'delivery' ? 'preparing' : 'confirmed');
 
   db.prepare(`
     INSERT INTO orders (
@@ -359,7 +359,7 @@ app.post('/api/orders', orderLimiter, (req, res) => {
   // Notifications go out now for pay-at-pickup orders; card orders notify
   // only after the payment succeeds (see /api/payments/confirm)
   if (!payFirst) {
-    if (type === 'pickup' && customer_phone) {
+    if (type !== 'delivery' && customer_phone) {
       sms.notifyOrderPlaced({
         customer_name: customer_name || 'there',
         customer_phone,

@@ -4513,3 +4513,16 @@ body { font-size: 15px; }
 .add-btn-open { background: #1a1a2e !important; box-shadow: none; }
 .option-rows .item-stepper { padding: 2px; }
 .option-rows .stepper-btn { width: 26px; height: 26px; font-size: 1rem; }
+
+
+/* ---- order type toggle (pickup / dine-in) ---- */
+.ordertype-toggle { display: flex; gap: 8px; margin-bottom: 12px; }
+.ordertype-btn {
+  flex: 1; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #e2e2e2;
+  background: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; color: #555;
+  transition: all .15s ease;
+}
+.ordertype-btn.active { border-color: #0a8a43; background: #f0faf4; color: #0a8a43; }
+.dinein-hint { font-size: 0.8rem; color: #8a6d1a; background: #fdf7e3; border-radius: 8px; padding: 8px 10px; margin: 0 0 12px; }
+
+.dinein-badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 6px; background: #8a2be2; color: #fff; font-size: 0.62em; font-weight: 800; letter-spacing: .5px; vertical-align: middle; }

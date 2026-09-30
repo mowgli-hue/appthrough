@@ -6,8 +6,8 @@ import { rememberOrder } from '../utils/myOrders';
 function Checkout() {
   const { cart, subtotal, tax, clearCart, itemCount } = useCart();
   const navigate = useNavigate();
-  // Walk-up pickup only — App-Thru doesn't do delivery
-  const orderType = 'pickup';
+  // Walk-up pickup or dine-in (table not guaranteed) — no delivery
+  const [orderType, setOrderType] = useState('pickup');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [note, setNote] = useState('');
@@ -22,7 +22,7 @@ function Checkout() {
   const currencyRef = useRef('cad');
   const payMountRef = useRef(null);
 
-  const isPickup = true;
+  const isPickup = orderType === 'pickup';
   const effectiveDeliveryFee = 0;
   const APPTHRU_FEE = 0.99;
   const effectiveTotal = Math.round((subtotal + effectiveDeliveryFee + tax + APPTHRU_FEE) * 100) / 100;
@@ -171,6 +171,25 @@ function Checkout() {
           <h1>Checkout</h1>
 
           <div className="checkout-section">
+            <div className="ordertype-toggle" role="radiogroup" aria-label="Order type">
+              <button
+                type="button"
+                className={`ordertype-btn${orderType === 'pickup' ? ' active' : ''}`}
+                onClick={() => setOrderType('pickup')}
+              >
+                🥡 Pickup
+              </button>
+              <button
+                type="button"
+                className={`ordertype-btn${orderType === 'dinein' ? ' active' : ''}`}
+                onClick={() => setOrderType('dinein')}
+              >
+                🍽️ Dine-in
+              </button>
+            </div>
+            {orderType === 'dinein' && (
+              <p className="dinein-hint">Seating is first-come, first-served — a table isn't guaranteed at busy times.</p>
+            )}
             <h2>Your Info</h2>
             <p className="section-hint">
               Both fields are required — we text your phone the moment your order is ready.
@@ -251,13 +270,13 @@ function Checkout() {
             >
               {placing
                 ? 'Placing Order...'
-                : `${isPickup ? 'Place Pickup Order' : 'Place Order'} - $${effectiveTotal.toFixed(2)}`}
+                : `${isPickup ? 'Place Pickup Order' : 'Place Dine-in Order'} - $${effectiveTotal.toFixed(2)}`}
             </button>
-            {isPickup && (
-              <p className="pickup-hint">
-                ⏰ You'll get a push notification when your food is ready. Just walk up &amp; show your pickup code.
-              </p>
-            )}
+            <p className="pickup-hint">
+              {isPickup
+                ? "⏰ You'll get a text when your food is ready. Just walk up & show your pickup code."
+                : "⏰ Order now, grab a seat if one's free — we'll text you when your food is ready."}
+            </p>
           </div>
         </div>
       </div>
