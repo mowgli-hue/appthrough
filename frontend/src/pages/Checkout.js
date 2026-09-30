@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { rememberOrder } from '../utils/myOrders';
 
 function Checkout() {
   const { cart, subtotal, tax, clearCart, itemCount } = useCart();
@@ -122,6 +123,7 @@ function Checkout() {
         throw new Error(err.error || 'Failed to place order');
       }
       const order = await res.json();
+      rememberOrder(order.id);
 
       // Charge the card if the customer chose to pay now
       if (payingByCard) {

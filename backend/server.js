@@ -446,15 +446,23 @@ app.get('/api/orders/:id', (req, res) => {
   res.json(order);
 });
 
-// Get all orders
+// Order history for ONE device: returns only the explicitly requested ids
+// (UUIDs are unguessable, so a device can only ever fetch its own orders)
 app.get('/api/orders', (req, res) => {
+  const ids = String(req.query.ids || '')
+    .split(',')
+    .map(x => x.trim())
+    .filter(x => /^[0-9a-f-]{36}$/i.test(x))
+    .slice(0, 20);
+  if (!ids.length) return res.json([]);
+  const placeholders = ids.map(() => '?').join(',');
   const orders = db.prepare(`
     SELECT o.*, r.name as restaurant_name, r.image as restaurant_image
     FROM orders o
     JOIN restaurants r ON o.restaurant_id = r.id
+    WHERE o.id IN (${placeholders})
     ORDER BY o.created_at DESC
-  `).all();
-
+  `).all(...ids);
   orders.forEach(o => { o.items = JSON.parse(o.items); });
   res.json(orders);
 });

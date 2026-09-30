@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { rememberOrder } from '../utils/myOrders';
 import { useParams, Link } from 'react-router-dom';
 
 const PICKUP_STEPS = [
@@ -9,6 +10,7 @@ const PICKUP_STEPS = [
 
 function OrderConfirmation() {
   const { id } = useParams();
+  useEffect(() => { rememberOrder(id); }, [id]);
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const prevStatusRef = useRef(null);

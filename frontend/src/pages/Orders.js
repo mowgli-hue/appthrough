@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../utils/time';
+import { myOrderIds } from '../utils/myOrders';
 import { Link } from 'react-router-dom';
 
 function Orders() {
@@ -7,12 +8,19 @@ function Orders() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/orders')
+    const ids = myOrderIds();
+    if (!ids.length) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
+    fetch('/api/orders?ids=' + ids.join(','))
       .then(r => r.json())
       .then(data => {
-        setOrders(data);
+        setOrders(Array.isArray(data) ? data : []);
         setLoading(false);
-      });
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -27,7 +35,7 @@ function Orders() {
         <div className="no-results">
           <span className="no-results-icon">📋</span>
           <h2>No orders yet</h2>
-          <p>Your order history will appear here</p>
+          <p>Orders you place on this phone will appear here</p>
           <Link to="/" className="btn-primary">Browse Restaurants</Link>
         </div>
       ) : (
