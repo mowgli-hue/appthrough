@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const agent = require('./agent');
 const sms = require('./sms');
 const email = require('./email');
+const clover = require('./clover');
 const payments = require('./payments');
 const auth = require('./auth');
 const rateLimit = require('express-rate-limit');
@@ -211,6 +212,12 @@ app.post('/api/payments/confirm', async (req, res) => {
           ord.notification_email,
           ord.restaurant_name,
         ).catch(() => {});
+        clover.pushOrder({
+          pickup_code: ord.pickup_code,
+          items: JSON.parse(ord.items || '[]'),
+          subtotal: ord.subtotal, tax: ord.tax, service_fee: ord.service_fee, total: ord.total,
+          customer_name: ord.customer_name, note: ord.note, restaurant_name: ord.restaurant_name,
+        }).catch(() => {});
       }
     }
   }
@@ -369,6 +376,10 @@ app.post('/api/orders', orderLimiter, (req, res) => {
       restaurant.notification_email,
       restaurant.name,
     ).catch(() => {});
+    clover.pushOrder({
+      pickup_code: pickupCode, items, subtotal, tax, service_fee, total,
+      customer_name, note, restaurant_name: restaurant.name,
+    }).catch(() => {});
   }
 
   res.status(201).json({
