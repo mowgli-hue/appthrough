@@ -46,8 +46,9 @@ async function createPaymentIntent(amountDollars, metadata = {}, methodType = 'c
     if (methodType === 'card_present') {
       params.payment_method_types = ['card_present']; // physical terminals
     } else {
-      // Online: cards + Apple Pay + Google Pay + Link (remembered cards)
-      params.automatic_payment_methods = { enabled: true, allow_redirects: 'never' };
+      // Online: cards (incl. Apple Pay / Google Pay wallets) + Link.
+      // Must match the Payment Element's paymentMethodTypes exactly.
+      params.payment_method_types = ['card', 'link'];
     }
     const intent = await stripe.paymentIntents.create(params);
     return {
