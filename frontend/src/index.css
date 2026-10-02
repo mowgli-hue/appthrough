@@ -4664,3 +4664,23 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 /* ===== Fix: cart sidebar must sit above sticky chips/navbar ===== */
 .cart-overlay { z-index: 1190 !important; }
 .cart-sidebar { z-index: 1200 !important; background: #fff !important; }
+
+
+/* ===== iOS Safari: cart panel height + scroll fix =====
+   100vh extends under Safari's bottom bar, hiding the checkout button and
+   trapping scroll. dvh tracks the real visible height. */
+.cart-sidebar {
+  height: 100vh;
+  height: 100dvh !important;
+}
+.cart-items {
+  min-height: 0;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.cart-footer, .cart-summary {
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  background: #fff;
+}
