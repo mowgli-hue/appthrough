@@ -4846,3 +4846,13 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 .cancel-msg { background: #fdf1f1; color: #8a1f1a; border-radius: 10px; padding: 10px 12px; font-size: 0.85rem; margin: 0; }
 .help-link { text-align: center; color: #555; font-size: 0.88rem; text-decoration: none; padding: 6px; }
 .help-link:hover { color: #0e8a4a; }
+
+
+/* Empty states: stacked flex so the button can never overlap the text */
+.no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.no-results .btn-primary { position: static !important; margin: 8px 0 0 !important; }

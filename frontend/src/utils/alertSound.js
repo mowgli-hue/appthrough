@@ -21,7 +21,7 @@ export function autoUnlockOnFirstTap() {
   document.addEventListener('pointerdown', handler);
 }
 
-function bell(c, freq, start, duration = 0.9, volume = 0.5) {
+function bell(c, freq, start, duration = 1.0, volume = 0.9) {
   // Fundamental + soft octave overtone = warm doorbell timbre
   [[freq, volume], [freq * 2, volume * 0.18]].forEach(([f, v]) => {
     const osc = c.createOscillator();
@@ -41,8 +41,8 @@ function bell(c, freq, start, duration = 0.9, volume = 0.5) {
 let loopTimer = null;
 export function startAlertLoop() {
   if (loopTimer) return;
-  playNewOrderChime(1);
-  loopTimer = setInterval(() => playNewOrderChime(1), 3500);
+  playNewOrderChime(2);
+  loopTimer = setInterval(() => playNewOrderChime(2), 2500);
 }
 export function stopAlertLoop() {
   if (loopTimer) { clearInterval(loopTimer); loopTimer = null; }
@@ -55,7 +55,7 @@ export function playNewOrderChime(times = 2) {
     if (c.state === 'suspended') c.resume();
     const t0 = c.currentTime + 0.02;
     for (let i = 0; i < times; i++) {
-      const t = t0 + i * 1.5;
+      const t = t0 + i * 1.1;
       bell(c, 659.25, t);        // E5 — ding
       bell(c, 523.25, t + 0.4);  // C5 — dong
     }
