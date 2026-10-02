@@ -83,7 +83,7 @@ function Checkout() {
       // Premium: spaced expandable options with radio dots, minimal questions.
       layout: { type: 'accordion', defaultCollapsed: true, radios: true, spacedAccordionItems: true },
       // We already collect name + phone in our own form; never ask for address.
-      fields: { billingDetails: { name: 'never', phone: 'never', address: 'never' } },
+      fields: { billingDetails: { name: 'never', phone: 'never', address: 'auto' } },
       terms: { card: 'never' },
     });
     pe.mount(payMountRef.current);
@@ -168,7 +168,6 @@ function Checkout() {
                 billing_details: {
                   name: name.trim(),
                   phone: phone.replace(/\D/g, ''),
-                  address: { country: 'CA' },
                 },
               },
             },
