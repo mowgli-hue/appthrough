@@ -115,4 +115,27 @@ async function pushOrder(order) {
   }
 }
 
-module.exports = { pushOrder, credsFor };
+// Diagnostic: test each configured location's token with a harmless GET
+async function testConnections() {
+  const keys = ['KINGGEORGE', 'DELTA', 'WHITEROCK'];
+  const out = {};
+  for (const key of keys) {
+    const mid = process.env['CLOVER_MID_' + key];
+    const token = process.env['CLOVER_TOKEN_' + key];
+    if (!mid || !token) { out[key] = 'not configured'; continue; }
+    try {
+      const res = await fetch(`${API_BASE}/v3/merchants/${mid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const m = await res.json();
+        out[key] = `OK — connected to "${m.name}"`;
+      } else {
+        out[key] = `FAILED — HTTP ${res.status}${res.status === 401 ? ' (bad token)' : res.status === 403 ? ' (token lacks permission or wrong merchant)' : ''}`;
+      }
+    } catch (e) { out[key] = 'FAILED — ' + e.message; }
+  }
+  return out;
+}
+
+module.exports = { pushOrder, credsFor, testConnections };

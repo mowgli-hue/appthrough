@@ -570,6 +570,11 @@ app.post('/api/orders/:id/cancel', orderLimiter, async (req, res) => {
   res.json({ ok: true, refunded });
 });
 
+// Clover connection test (merchant-only)
+app.get('/api/clover/test', auth.authMiddleware, async (req, res) => {
+  res.json(await clover.testConnections());
+});
+
 // Order history for ONE device: returns only the explicitly requested ids
 // (UUIDs are unguessable, so a device can only ever fetch its own orders)
 app.get('/api/orders', (req, res) => {
