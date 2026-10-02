@@ -8,8 +8,9 @@ function Checkout() {
   const navigate = useNavigate();
   // Walk-up pickup or dine-in (table not guaranteed) — no delivery
   const [orderType, setOrderType] = useState('pickup');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const saved = (() => { try { return JSON.parse(localStorage.getItem('appthru_customer') || '{}'); } catch { return {}; } })();
+  const [name, setName] = useState(saved.name || '');
+  const [phone, setPhone] = useState(saved.phone || '');
   const [note, setNote] = useState('');
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
@@ -60,11 +61,12 @@ function Checkout() {
       mode: 'payment',
       amount: amountCents,
       currency: currencyRef.current,
+      paymentMethodTypes: ['card', 'link'],
       appearance: {
         variables: {
           colorPrimary: '#00cc6a',
           borderRadius: '12px',
-          fontSizeBase: '15px',
+          fontSizeBase: '16px',
           colorText: '#1a1a1a',
           colorTextSecondary: '#777',
           spacingUnit: '4px',
@@ -186,6 +188,7 @@ function Checkout() {
         try { await Notification.requestPermission(); } catch {}
       }
 
+      try { localStorage.setItem('appthru_customer', JSON.stringify({ name: name.trim(), phone })); } catch {}
       clearCart();
       navigate(`/order/${order.id}`);
     } catch (e) {
@@ -228,6 +231,7 @@ function Checkout() {
               type="text"
               className="address-input"
               placeholder="Your name *"
+              autoComplete="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -235,7 +239,8 @@ function Checkout() {
             <input
               type="tel"
               className="address-input"
-              placeholder="Mobile number * (for the ready text)"
+              placeholder="Mobile number *"
+              autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               style={{ marginTop: '0.5rem' }}
