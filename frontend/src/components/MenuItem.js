@@ -50,11 +50,28 @@ function MenuItem({ item, restaurant }) {
     : `$${item.price.toFixed(2)}`;
   const sheetTotal = hasOptions && sheetOpen ? (options[selected].price * qty) : 0;
 
+  const actionControl = hasOptions ? (
+    <button
+      className={`add-btn ${pop ? 'pop' : ''}`}
+      onClick={openSheet}
+      aria-label={`Choose size for ${item.name}`}
+    >
+      {totalInCart > 0 ? totalInCart : '+'}
+    </button>
+  ) : cartItem ? (
+    <div className={`item-stepper ${pop ? 'pop' : ''}`}>
+      <button className="stepper-btn" onClick={() => removeItem(item.id)} aria-label="Remove one">−</button>
+      <span className="stepper-qty">{cartItem.quantity}</span>
+      <button className="stepper-btn stepper-add" onClick={addPlain} aria-label="Add one">+</button>
+    </div>
+  ) : (
+    <button className={`add-btn ${pop ? 'pop' : ''}`} onClick={addPlain} aria-label={`Add ${item.name}`}>
+      +
+    </button>
+  );
+
   return (
-    <div className={`menu-item ${totalInCart ? 'menu-item-selected' : ''}`}>
-      {item.image && (
-        <img className="menu-item-photo" src={item.image} alt={item.name} loading="lazy" />
-      )}
+    <div className={`menu-item mi-pro ${totalInCart ? 'menu-item-selected' : ''}`}>
       <div className="menu-item-info">
         <div className="menu-item-header">
           <h4>{item.name}{item.popular === 1 && <span className="popular-badge">Popular</span>}</h4>
@@ -65,27 +82,14 @@ function MenuItem({ item, restaurant }) {
           {hasOptions && <span className="size-hint">{options.map(o => o.name).join(' / ')}</span>}
         </p>
       </div>
-      <div className="menu-item-action">
-        {hasOptions ? (
-          <button
-            className={`add-btn ${pop ? 'pop' : ''}`}
-            onClick={openSheet}
-            aria-label={`Choose size for ${item.name}`}
-          >
-            {totalInCart > 0 ? totalInCart : '+'}
-          </button>
-        ) : cartItem ? (
-          <div className={`item-stepper ${pop ? 'pop' : ''}`}>
-            <button className="stepper-btn" onClick={() => removeItem(item.id)} aria-label="Remove one">−</button>
-            <span className="stepper-qty">{cartItem.quantity}</span>
-            <button className="stepper-btn stepper-add" onClick={addPlain} aria-label="Add one">+</button>
-          </div>
-        ) : (
-          <button className={`add-btn ${pop ? 'pop' : ''}`} onClick={addPlain} aria-label={`Add ${item.name}`}>
-            +
-          </button>
-        )}
-      </div>
+      {item.image ? (
+        <div className="menu-item-media">
+          <img className="menu-item-photo" src={item.image} alt={item.name} loading="lazy" />
+          <div className="menu-item-float">{actionControl}</div>
+        </div>
+      ) : (
+        <div className="menu-item-action">{actionControl}</div>
+      )}
 
       {hasOptions && sheetOpen && (
         <div className={`sheet-overlay ${closing ? 'sheet-closing' : ''}`} onClick={closeSheet}>
