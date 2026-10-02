@@ -13,6 +13,8 @@ function OrderConfirmation() {
   useEffect(() => { rememberOrder(id); }, [id]);
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelMsg, setCancelMsg] = useState('');
   const prevStatusRef = useRef(null);
 
   // Poll for status updates (so the user sees "Ready" the moment staff marks it).
@@ -102,6 +104,24 @@ function OrderConfirmation() {
   }
 
   const isPickup = order.order_type === 'pickup';
+  const cancelOrder = async () => {
+    if (!window.confirm('Cancel this order? Your payment will be refunded in full.')) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/orders/${id}/cancel`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setCancelMsg('Order cancelled. Your refund is on its way (3-5 business days).');
+        setOrder(o => ({ ...o, status: 'cancelled' }));
+      } else {
+        setCancelMsg(data.error || 'Could not cancel — please contact the restaurant.');
+      }
+    } catch {
+      setCancelMsg('Could not cancel — please contact the restaurant.');
+    }
+    setCancelling(false);
+  };
+
   const currentStepIndex = PICKUP_STEPS.findIndex(s => s.key === order.status);
 
   return (
@@ -240,6 +260,20 @@ function OrderConfirmation() {
           <div className="summary-row total">
             <span>Total</span><span>${order.total.toFixed(2)}</span>
           </div>
+        </div>
+
+        <div className="order-help">
+          {cancelMsg && <p className="cancel-msg">{cancelMsg}</p>}
+          {order.status === 'preparing' && !cancelMsg && (
+            <button className="btn-cancel-order" onClick={cancelOrder} disabled={cancelling}>
+              {cancelling ? 'Cancelling…' : 'Cancel order (within 5 min — full refund)'}
+            </button>
+          )}
+          {order.restaurant_phone && (
+            <a className="help-link" href={`tel:${order.restaurant_phone}`}>
+              📞 Need help? Call {order.restaurant_name}
+            </a>
+          )}
         </div>
 
         <div className="confirmation-actions">

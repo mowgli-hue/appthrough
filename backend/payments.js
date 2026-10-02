@@ -77,4 +77,18 @@ async function confirmPayment(paymentIntentId) {
   }
 }
 
-module.exports = { createPaymentIntent, confirmPayment, isConfigured, publishableKey, CURRENCY };
+// Full refund for a cancelled order (customer-initiated within the window)
+async function refundPayment(paymentIntentId) {
+  if (!isConfigured() || !paymentIntentId || String(paymentIntentId).startsWith('dev_')) {
+    return { success: true, dev: true };
+  }
+  try {
+    const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
+    return { success: true, refundId: refund.id, status: refund.status };
+  } catch (err) {
+    console.error('[PAYMENT] Refund error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+module.exports = { createPaymentIntent, confirmPayment, refundPayment, isConfigured, publishableKey, CURRENCY };

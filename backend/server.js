@@ -295,13 +295,28 @@ app.get('/api/search', (req, res) => {
 });
 
 // Generate a short, human-friendly pickup code (e.g. "A7K4")
-function generatePickupCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars
-  let code = '';
-  for (let i = 0; i < 4; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+function generatePickupCode(customerName) {
+  // Tag-style code: first letter of the customer's name + 2 digits (e.g. L-42)
+  const m = String(customerName || '').trim().match(/[A-Za-z]/);
+  const initial = m ? m[0].toUpperCase() : 'A';
+  const digits = String(Math.floor(Math.random() * 90) + 10); // 10-99
+  return `${initial}-${digits}`;
+}
+
+// Dish-aware prep estimate: drinks are fast, food takes longer
+const PREP_BY_CATEGORY = {
+  'chai': 8, 'coffee': 8, 'cold coffee': 8, 'cold drinks': 6, 'shakes': 8,
+  'ice cream': 5, 'bagels': 10, 'sweets': 8, 'sides': 10,
+  'pakora': 15, 'finger food': 15,
+  'burgers': 18, 'sandwiches': 15, 'wraps': 15, "parantha's": 15, 'meals': 18,
+};
+function estimatePrepMinutes(items) {
+  let maxPrep = 0;
+  for (const it of (items || [])) {
+    const cat = String(it.category || '').toLowerCase().trim();
+    maxPrep = Math.max(maxPrep, PREP_BY_CATEGORY[cat] ?? 12);
   }
-  return code;
+  return Math.max(5, maxPrep || 12);
 }
 
 // Create an order (delivery OR walk-up pickup)
@@ -339,7 +354,7 @@ app.post('/api/orders', orderLimiter, (req, res) => {
   const total = Math.round((subtotal + delivery_fee + tax + service_fee) * 100) / 100;
 
   const orderId = uuidv4();
-  const pickupCode = type !== 'delivery' ? generatePickupCode() : null;
+  const pickupCode = type !== 'delivery' ? generatePickupCode(customer_name) : null;
   // Card-paid orders stay hidden from the kitchen until payment succeeds
   const payFirst = Boolean(req.body.pay_first);
   const initialStatus = payFirst ? 'awaiting_payment' : (type !== 'delivery' ? 'preparing' : 'confirmed');
@@ -478,7 +493,7 @@ app.get('/api/pickup-orders', auth.authMiddleware, async (req, res) => {
 // Get order by ID (includes queue position + ETA for pickup orders)
 app.get('/api/orders/:id', (req, res) => {
   const order = db.prepare(`
-    SELECT o.*, r.name as restaurant_name, r.image as restaurant_image, r.prep_minutes as restaurant_prep_minutes
+    SELECT o.*, r.name as restaurant_name, r.image as restaurant_image, r.prep_minutes as restaurant_prep_minutes, r.notification_phone as restaurant_phone
     FROM orders o
     JOIN restaurants r ON o.restaurant_id = r.id
     WHERE o.id = ?
@@ -499,9 +514,9 @@ app.get('/api/orders/:id', (req, res) => {
         AND created_at < ?
     `).get(order.restaurant_id, order.created_at);
     order.queue_position = (ahead?.cnt || 0) + 1;
-    // Base kitchen prep time (per restaurant) + 4 min per order ahead in queue
-    const prep = order.restaurant_prep_minutes || 15;
-    order.estimated_minutes = prep + (order.queue_position - 1) * 4;
+    // Dish-aware prep (drinks fast, food longer) + 3 min per order ahead, capped
+    const prep = estimatePrepMinutes(order.items);
+    order.estimated_minutes = Math.min(45, prep + (order.queue_position - 1) * 3);
   } else if (order.order_type === 'pickup' && order.status === 'ready') {
     order.queue_position = 0;
     order.estimated_minutes = 0;
@@ -513,6 +528,46 @@ app.get('/api/orders/:id', (req, res) => {
   }
 
   res.json(order);
+});
+
+// Customer-initiated cancel: within 5 minutes, while still preparing.
+// Auto-refunds the Stripe payment in full. (Order id is an unguessable UUID,
+// so only the device that placed the order can reach it.)
+app.post('/api/orders/:id/cancel', orderLimiter, async (req, res) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (!['preparing', 'awaiting_payment'].includes(order.status)) {
+    return res.status(409).json({ error: 'This order is already being completed and can no longer be cancelled. Please contact the restaurant.' });
+  }
+  const ageMin = (Date.now() - new Date(order.created_at.replace(' ', 'T') + 'Z').getTime()) / 60000;
+  if (ageMin > 5) {
+    return res.status(409).json({ error: 'The 5-minute cancel window has passed. Please contact the restaurant.' });
+  }
+
+  let refunded = false;
+  if (order.payment_status === 'paid' && order.payment_id) {
+    const pay = db.prepare('SELECT * FROM payments WHERE id = ?').get(order.payment_id);
+    if (pay && pay.stripe_payment_intent) {
+      const result = await payments.refundPayment(pay.stripe_payment_intent);
+      if (!result.success) {
+        return res.status(502).json({ error: 'Refund failed — please contact the restaurant to cancel.' });
+      }
+      refunded = true;
+      db.prepare("UPDATE payments SET status = 'refunded' WHERE id = ?").run(order.payment_id);
+    }
+  }
+  db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ?").run(order.id);
+
+  // Let the restaurant know so the kitchen stops making it
+  const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(order.restaurant_id);
+  if (r) {
+    sms.notifyRestaurantNewOrder(
+      { pickup_code: order.pickup_code, items: `CANCELLED by customer${refunded ? ' (refunded)' : ''}`, total: order.total, customer_name: order.customer_name, note: 'ORDER CANCELLED — do not prepare', location_name: r.name },
+      r.notification_phone,
+    ).catch(() => {});
+  }
+
+  res.json({ ok: true, refunded });
 });
 
 // Order history for ONE device: returns only the explicitly requested ids
@@ -594,7 +649,7 @@ app.post('/api/agent/message', async (req, res) => {
   if (result.reply === '__PLACE_ORDER__') {
     const { subtotal, tax, serviceFee, total } = agent.summarize(session);
     const orderId = uuidv4();
-    const pickupCode = generatePickupCode();
+    const pickupCode = generatePickupCode(customer_name);
     db.prepare(`
       INSERT INTO orders (
         id, restaurant_id, items, subtotal, delivery_fee, tax, service_fee, total,
