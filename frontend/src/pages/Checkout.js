@@ -23,6 +23,10 @@ function Checkout() {
   const elementsRef = useRef(null);
   const currencyRef = useRef('cad');
   const payMountRef = useRef(null);
+  const expressMountRef = useRef(null);
+  const expressElementsRef = useRef(null);
+  const [expressReady, setExpressReady] = useState(false);
+  const formRef = useRef({});
 
   const isPickup = orderType === 'pickup';
   const effectiveDeliveryFee = 0;
@@ -86,16 +90,62 @@ function Checkout() {
       // We already collect name + phone in our own form; never ask for address.
       fields: { billingDetails: { name: 'never', phone: 'never', address: 'auto' } },
       terms: { card: 'never' },
+      wallets: { applePay: 'never', googlePay: 'never' },
     });
     pe.mount(payMountRef.current);
     elementsRef.current = elements;
     return () => { pe.destroy(); elementsRef.current = null; };
   }, [stripeReady]); // amount updates handled separately below
 
+  // Apple Pay / Google Pay: dedicated express button (opens the wallet sheet directly)
+  useEffect(() => {
+    if (!stripeReady || !expressMountRef.current || amountCents <= 0) return;
+    const els = stripeRef.current.elements({
+      mode: 'payment',
+      amount: amountCents,
+      currency: currencyRef.current,
+      paymentMethodTypes: ['card'],
+      appearance: { variables: { borderRadius: '12px' } },
+    });
+    const ece = els.create('expressCheckout', {
+      buttonType: { applePay: 'order', googlePay: 'order' },
+      buttonHeight: 50,
+      paymentMethods: { applePay: 'auto', googlePay: 'auto', link: 'never', paypal: 'never', amazonPay: 'never', klarna: 'never' },
+      layout: { maxColumns: 1, maxRows: 2, overflow: 'never' },
+    });
+    ece.on('ready', ({ availablePaymentMethods }) => {
+      setExpressReady(Boolean(availablePaymentMethods && Object.values(availablePaymentMethods).some(Boolean)));
+    });
+    ece.on('click', (event) => {
+      const v = validateForm();
+      if (v) { setError(v); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      setError('');
+      event.resolve();
+    });
+    ece.on('confirm', async (event) => {
+      setPlacing(true);
+      try {
+        const { error: submitError } = await els.submit();
+        if (submitError) throw new Error(submitError.message);
+        await createOrderAndPay(els);
+      } catch (e) {
+        try { event.paymentFailed({ reason: 'fail' }); } catch {}
+        setError(e.message || 'Payment failed. Please try again.');
+        setPlacing(false);
+      }
+    });
+    ece.mount(expressMountRef.current);
+    expressElementsRef.current = els;
+    return () => { ece.destroy(); expressElementsRef.current = null; setExpressReady(false); };
+  }, [stripeReady]); // eslint-disable-line
+
   // Keep the sheet amount in sync if the cart total changes
   useEffect(() => {
     if (elementsRef.current && amountCents > 0) {
       elementsRef.current.update({ amount: amountCents });
+    }
+    if (expressElementsRef.current && amountCents > 0) {
+      expressElementsRef.current.update({ amount: amountCents });
     }
   }, [amountCents]);
 
@@ -113,14 +163,80 @@ function Checkout() {
 
   const validPhone = (p) => p.replace(/\D/g, '').length >= 10;
 
+  // Latest form values for the Apple Pay handler (it is registered once)
+  formRef.current = { name, phone, note, orderType, cart };
+
+  const validateForm = (f = formRef.current) => {
+    if (!f.name.trim()) return 'Please enter your name.';
+    if (!validPhone(f.phone)) return 'Please enter a valid 10-digit mobile number — we text you when your order is ready.';
+    return '';
+  };
+
+  // Creates the order, then (if paying online) charges it with the given Elements group
+  const createOrderAndPay = async (payElements, f = formRef.current) => {
+    const paying = Boolean(payElements);
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...customerHeaders() },
+      body: JSON.stringify({
+        restaurant_id: f.cart.restaurantId,
+        items: f.cart.items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
+        order_type: f.orderType,
+        delivery_address: '',
+        customer_name: f.name,
+        customer_phone: f.phone,
+        note: f.note,
+        pay_first: paying,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to place order');
+    }
+    const order = await res.json();
+    rememberOrder(order.id);
+
+    if (paying) {
+      const payRes = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, amount: order.total }),
+      });
+      const pay = await payRes.json();
+      if (!payRes.ok || !pay.clientSecret) throw new Error(pay.error || 'Could not start payment');
+
+      if (!String(pay.clientSecret).startsWith('dev_')) {
+        const result = await stripeRef.current.confirmPayment({
+          elements: payElements,
+          clientSecret: pay.clientSecret,
+          confirmParams: {
+            return_url: window.location.origin + '/order/' + order.id,
+            payment_method_data: {
+              billing_details: { name: f.name.trim(), phone: f.phone.replace(/\D/g, '') },
+            },
+          },
+          redirect: 'if_required',
+        });
+        if (result.error) throw new Error(result.error.message);
+      }
+      await fetch('/api/payments/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId: pay.paymentId, paymentIntentId: pay.paymentIntentId }),
+      });
+    }
+
+    try { localStorage.setItem('appthru_customer', JSON.stringify({ name: f.name.trim(), phone: f.phone })); } catch {}
+    clearCart();
+    navigate(`/order/${order.id}`);
+  };
+
   const handlePlaceOrder = async () => {
     setError('');
-    if (!name.trim()) return setError('Please enter your name.');
-    if (!validPhone(phone)) return setError('Please enter a valid 10-digit mobile number — we text you when your order is ready.');
+    const v = validateForm({ name, phone, note, orderType, cart });
+    if (v) return setError(v);
 
     const payingByCard = stripeReady && payMethod === 'card' && Boolean(elementsRef.current);
-
-    // Validate the payment sheet first (card details / wallet selection)
     if (payingByCard) {
       const { error: submitError } = await elementsRef.current.submit();
       if (submitError) return setError(submitError.message);
@@ -128,69 +244,7 @@ function Checkout() {
 
     setPlacing(true);
     try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...customerHeaders() },
-        body: JSON.stringify({
-          restaurant_id: cart.restaurantId,
-          items: cart.items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
-          order_type: orderType,
-          delivery_address: '',
-          customer_name: name,
-          customer_phone: phone,
-          note,
-          pay_first: payingByCard,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to place order');
-      }
-      const order = await res.json();
-      rememberOrder(order.id);
-
-      // Charge the card if the customer chose to pay now
-      if (payingByCard) {
-        const payRes = await fetch('/api/payments/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: order.id, amount: order.total }),
-        });
-        const pay = await payRes.json();
-        if (!payRes.ok || !pay.clientSecret) throw new Error(pay.error || 'Could not start payment');
-
-        if (!String(pay.clientSecret).startsWith('dev_')) {
-          const result = await stripeRef.current.confirmPayment({
-            elements: elementsRef.current,
-            clientSecret: pay.clientSecret,
-            confirmParams: {
-              return_url: window.location.origin + '/order/' + order.id,
-              payment_method_data: {
-                billing_details: {
-                  name: name.trim(),
-                  phone: phone.replace(/\D/g, ''),
-                },
-              },
-            },
-            redirect: 'if_required',
-          });
-          if (result.error) throw new Error(result.error.message);
-        }
-        await fetch('/api/payments/confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentId: pay.paymentId, paymentIntentId: pay.paymentIntentId }),
-        });
-      }
-
-      // Ask for notification permission up front so we can ping them when ready.
-      if (isPickup && 'Notification' in window && Notification.permission === 'default') {
-        try { await Notification.requestPermission(); } catch {}
-      }
-
-      try { localStorage.setItem('appthru_customer', JSON.stringify({ name: name.trim(), phone })); } catch {}
-      clearCart();
-      navigate(`/order/${order.id}`);
+      await createOrderAndPay(payingByCard ? elementsRef.current : null, { name, phone, note, orderType, cart });
     } catch (e) {
       setError(e.message || 'Failed to place order. Please try again.');
       setPlacing(false);
@@ -278,6 +332,10 @@ function Checkout() {
             {stripeReady && (
               <div className="pay-method">
                 <div className="pay-option selected">💳 Pay — card, Apple Pay, Google Pay</div>
+                <div className={`express-pay ${expressReady ? 'show' : ''}`}>
+                  <div ref={expressMountRef} />
+                  {expressReady && <div className="pay-divider"><span>or pay with card</span></div>}
+                </div>
                 <div className="link-tip">
                   <span className="link-tip-icon">⚡</span>
                   <span><strong>First time?</strong> Pick <strong>Link</strong> below to save your card securely — next visit it’s one-tap checkout, no typing your card again.</span>
