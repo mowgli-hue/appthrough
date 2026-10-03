@@ -69,6 +69,7 @@ function publicConfig() {
       enabled: PROVIDERS.google.audiences().length > 0,
       webClientId: process.env.GOOGLE_WEB_CLIENT_ID || '',
       iosClientId: process.env.GOOGLE_IOS_CLIENT_ID || '',
+      androidEnabled: process.env.GOOGLE_ANDROID_ENABLED === '1',
     },
     apple: { enabled: process.env.APPLE_SIGNIN_ENABLED !== '0' },
   };

@@ -19,7 +19,10 @@ export const platform = () => { try { return Capacitor.getPlatform(); } catch { 
 export async function availableProviders() {
   const cfg = await getSocialConfig();
   const p = platform();
-  const google = !!cfg.google?.enabled && (p === 'ios' ? !!cfg.google.iosClientId : !!cfg.google.webClientId);
+  const google = !!cfg.google?.enabled && (
+    p === 'ios' ? !!cfg.google.iosClientId
+      : p === 'android' ? !!cfg.google.androidEnabled && !!cfg.google.webClientId
+        : !!cfg.google.webClientId);
   const apple = !!cfg.apple?.enabled && p === 'ios';
   return { google, apple };
 }

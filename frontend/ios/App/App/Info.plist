@@ -2,6 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.1009191393903-i2fb400one6ec3sjekcbu643otnbnuub</string>
+			</array>
+		</dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>1009191393903-i2fb400one6ec3sjekcbu643otnbnuub.apps.googleusercontent.com</string>
+
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
