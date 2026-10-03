@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { availableProviders, signInWith } from '../utils/social';
 import {
   saveSession, continueAsGuest, getCustomer, getCustomerToken, signOut,
   customerHeaders, updateProfile, openInBrowser,
@@ -12,6 +13,18 @@ export function SignIn() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const [providers, setProviders] = useState({ google: false, apple: false });
+  useEffect(() => { availableProviders().then(setProviders).catch(() => {}); }, []);
+  const social = async (provider) => {
+    setError(''); setBusy(true);
+    try {
+      const data = await signInWith(provider);
+      navigate(data.customer.phone ? '/' : '/account?welcome=1', { replace: true });
+    } catch (err) {
+      if (!/cancel/i.test(err.message || '')) setError(err.message || 'Sign-in failed');
+    }
+    setBusy(false);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -38,6 +51,24 @@ export function SignIn() {
         <img className="auth-logo" src="/applogo.png" alt="App-Thru" />
         <h1 className="auth-title">{mode === 'create' ? 'Create your account' : 'Welcome back'}</h1>
         <p className="auth-sub">{mode === 'create' ? 'Order ahead and skip the line.' : 'Sign in to order ahead.'}</p>
+
+        {(providers.apple || providers.google) && (
+          <div className="auth-social">
+            {providers.apple && (
+              <button type="button" className="social-btn social-apple" onClick={() => social('apple')} disabled={busy}>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M16.37 12.8c-.02-2.18 1.78-3.23 1.86-3.28-1.02-1.49-2.6-1.69-3.16-1.71-1.34-.14-2.62.79-3.3.79-.68 0-1.73-.77-2.84-.75-1.46.02-2.81.85-3.56 2.16-1.52 2.63-.39 6.52 1.09 8.66.72 1.04 1.58 2.22 2.71 2.18 1.09-.04 1.5-.7 2.82-.7 1.31 0 1.69.7 2.84.68 1.17-.02 1.91-1.06 2.63-2.11.83-1.21 1.17-2.38 1.19-2.44-.03-.01-2.28-.87-2.3-3.48zM14.21 6.4c.6-.73 1.01-1.74.9-2.75-.87.04-1.92.58-2.54 1.31-.56.64-1.05 1.67-.92 2.66.97.08 1.96-.49 2.56-1.22z"/></svg>
+                Continue with Apple
+              </button>
+            )}
+            {providers.google && (
+              <button type="button" className="social-btn social-google" onClick={() => social('google')} disabled={busy}>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.1V7.06H2.18A11 11 0 0 0 1 12c0 1.77.42 3.45 1.18 4.94l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15A10.96 10.96 0 0 0 12 1 11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z"/></svg>
+                Continue with Google
+              </button>
+            )}
+            <div className="pay-divider"><span>or use email</span></div>
+          </div>
+        )}
 
         <div className="auth-tabs" role="tablist">
           <button type="button" className={`auth-tab ${mode === 'signin' ? 'active' : ''}`} onClick={() => { setMode('signin'); setError(''); }}>Sign in</button>
@@ -75,6 +106,7 @@ export function SignIn() {
 
 export function AccountPage() {
   const navigate = useNavigate();
+  const welcome = new URLSearchParams(useLocation().search).has('welcome');
   const [customer, setCustomer] = useState(getCustomer());
   const [name, setName] = useState(customer?.name || '');
   const [phone, setPhone] = useState(customer?.phone || '');
@@ -123,11 +155,33 @@ export function AccountPage() {
     } else setMsg('Could not delete account — please contact support.');
   };
 
+  const since = customer?.since ? new Date(String(customer.since).replace(' ', 'T') + 'Z').toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : '';
+  const ini = String(customer?.name || '').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  const viaLabel = customer?.provider === 'apple' ? 'Signed in with Apple' : customer?.provider === 'google' ? 'Signed in with Google' : 'Email account';
+
   return (
     <div className="account-page">
-      <h1>Account</h1>
-      <p className="account-muted">{customer?.email}</p>
+      <div className="profile-card">
+        <div className="profile-avatar">
+          {customer?.avatar ? <img src={customer.avatar} alt="" referrerPolicy="no-referrer" /> : <span>{ini || '🙂'}</span>}
+        </div>
+        <div className="profile-info">
+          <h1>{customer?.name}</h1>
+          <p>{customer?.email && !/@users\.appthru\.ca$/.test(customer.email) ? customer.email : viaLabel}</p>
+          <div className="profile-meta">
+            <span>{viaLabel}</span>{since && <span>Member since {since}</span>}
+          </div>
+        </div>
+      </div>
 
+      {welcome && !customer?.phone && (
+        <div className="profile-welcome">
+          <strong>One last thing 👋</strong>
+          <span>Add your mobile number so we can text you the moment your order is ready.</span>
+        </div>
+      )}
+
+      <h2 className="account-h2">Your details</h2>
       <label className="account-label">Name</label>
       <input className="auth-input" value={name} onChange={e => setName(e.target.value)} />
       <label className="account-label">Mobile number</label>

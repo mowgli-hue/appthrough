@@ -217,6 +217,7 @@ app.post('/api/payments/confirm', async (req, res) => {
           items: JSON.parse(ord.items || '[]'),
           subtotal: ord.subtotal, tax: ord.tax, service_fee: ord.service_fee, total: ord.total,
           customer_name: ord.customer_name, note: ord.note, restaurant_name: ord.restaurant_name,
+          restaurant_id: ord.restaurant_id,
         }).catch(() => {});
       }
     }
@@ -229,37 +230,50 @@ app.post('/api/payments/confirm', async (req, res) => {
 
 // Get all categories
 app.get('/api/categories', (req, res) => {
-  const categories = db.prepare('SELECT * FROM categories').all();
+  const categories = db.prepare(`
+    SELECT c.* FROM categories c
+    WHERE c.name IN (SELECT DISTINCT r.cuisine FROM restaurants r WHERE r.id IN (SELECT restaurant_id FROM merchants WHERE restaurant_id IS NOT NULL))
+  `).all();
   res.json(categories);
 });
 
 // Get all restaurants (with optional filters)
+// Never expose private restaurant settings on public endpoints
+const PRIVATE_RESTAURANT_FIELDS = ['clover_mid', 'clover_token', 'notification_phone', 'notification_email'];
+function publicRestaurant(r) {
+  if (!r) return r;
+  const out = { ...r };
+  PRIVATE_RESTAURANT_FIELDS.forEach(k => { delete out[k]; });
+  return out;
+}
+
 app.get('/api/restaurants', (req, res) => {
   const { cuisine, search, featured } = req.query;
-  let query = 'SELECT * FROM restaurants WHERE 1=1';
+  // Only real, onboarded restaurants (ones with a merchant account) are listed
+  let query = 'SELECT r.* FROM restaurants r WHERE r.id IN (SELECT restaurant_id FROM merchants WHERE restaurant_id IS NOT NULL)';
   const params = [];
 
   if (cuisine) {
-    query += ' AND cuisine = ?';
+    query += ' AND r.cuisine = ?';
     params.push(cuisine);
   }
   if (search) {
-    query += ' AND (name LIKE ? OR cuisine LIKE ? OR description LIKE ?)';
+    query += ' AND (r.name LIKE ? OR r.cuisine LIKE ? OR r.description LIKE ?)';
     const term = `%${search}%`;
     params.push(term, term, term);
   }
   if (featured === 'true') {
-    query += ' AND featured = 1';
+    query += ' AND r.featured = 1';
   }
 
-  query += ' ORDER BY rating DESC';
+  query += ' ORDER BY r.name ASC';
   const restaurants = db.prepare(query).all(...params);
-  res.json(restaurants);
+  res.json(restaurants.map(publicRestaurant));
 });
 
 // Get single restaurant with menu
 app.get('/api/restaurants/:id', (req, res) => {
-  const restaurant = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  const restaurant = db.prepare('SELECT r.* FROM restaurants r WHERE r.id = ? AND r.id IN (SELECT restaurant_id FROM merchants WHERE restaurant_id IS NOT NULL)').get(req.params.id);
   if (!restaurant) {
     return res.status(404).json({ error: 'Restaurant not found' });
   }
@@ -274,7 +288,7 @@ app.get('/api/restaurants/:id', (req, res) => {
     menuByCategory[cat].push(item);
   }
 
-  res.json({ ...restaurant, menu: menuByCategory, menuItems });
+  res.json({ ...publicRestaurant(restaurant), menu: menuByCategory, menuItems });
 });
 
 // Search menu items across all restaurants
@@ -287,7 +301,8 @@ app.get('/api/search', (req, res) => {
     SELECT mi.*, r.name as restaurant_name, r.delivery_time, r.delivery_fee
     FROM menu_items mi
     JOIN restaurants r ON mi.restaurant_id = r.id
-    WHERE mi.name LIKE ? OR mi.description LIKE ? OR mi.category LIKE ?
+    WHERE (mi.name LIKE ? OR mi.description LIKE ? OR mi.category LIKE ?)
+      AND r.id IN (SELECT restaurant_id FROM merchants WHERE restaurant_id IS NOT NULL) AND mi.available != 0
     LIMIT 20
   `).all(term, term, term);
 
@@ -341,9 +356,9 @@ app.post('/api/orders', orderLimiter, (req, res) => {
     return res.status(400).json({ error: 'Phone number is required for walk-up pickup' });
   }
 
-  const restaurant = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(restaurant_id);
+  const restaurant = db.prepare('SELECT r.* FROM restaurants r WHERE r.id = ? AND r.id IN (SELECT restaurant_id FROM merchants WHERE restaurant_id IS NOT NULL)').get(restaurant_id);
   if (!restaurant) {
-    return res.status(404).json({ error: 'Restaurant not found' });
+    return res.status(404).json({ error: 'This restaurant is not taking orders' });
   }
 
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -393,7 +408,7 @@ app.post('/api/orders', orderLimiter, (req, res) => {
     ).catch(() => {});
     clover.pushOrder({
       pickup_code: pickupCode, items, subtotal, tax, service_fee, total,
-      customer_name, note, restaurant_name: restaurant.name,
+      customer_name, note, restaurant_name: restaurant.name, restaurant_id: restaurant.id,
     }).catch(() => {});
   }
 
@@ -572,7 +587,8 @@ app.post('/api/orders/:id/cancel', orderLimiter, async (req, res) => {
 
 // Clover connection test (merchant-only)
 app.get('/api/clover/test', auth.authMiddleware, async (req, res) => {
-  res.json(await clover.testConnections());
+  const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.merchant.restaurantId);
+  res.json(await clover.testConnection(r));
 });
 
 // ---- Customer accounts (mobile app) -------------------------------------
@@ -587,6 +603,20 @@ app.post('/api/customers/login', authLimiter, (req, res) => {
   const r = auth.loginCustomer(email, password);
   if (r.error) return res.status(401).json({ error: r.error });
   res.json(r);
+});
+
+const oauth = require('./oauth');
+app.get('/api/auth/social-config', (req, res) => res.json(oauth.publicConfig()));
+
+app.post('/api/customers/social', authLimiter, async (req, res) => {
+  const { provider, idToken, name } = req.body || {};
+  try {
+    const ident = await oauth.verifyIdToken(provider, idToken);
+    res.json(auth.socialCustomer(provider, ident, { name }));
+  } catch (e) {
+    console.warn('[social-login]', provider, e.message);
+    res.status(401).json({ error: 'Sign-in failed — please try again' });
+  }
 });
 
 app.get('/api/customers/me', auth.customerAuth, (req, res) => {
@@ -795,6 +825,8 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   if (notification_phone !== undefined) { fields.push('notification_phone = ?'); values.push(String(notification_phone).replace(/[^\d+]/g, '').slice(0, 20)); }
   if (req.body.image !== undefined) { fields.push('image = ?'); values.push(String(req.body.image).slice(0, 500)); }
   if (req.body.notification_email !== undefined) { fields.push('notification_email = ?'); values.push(String(req.body.notification_email).trim().slice(0, 120)); }
+  if (req.body.clover_mid !== undefined) { fields.push('clover_mid = ?'); values.push(String(req.body.clover_mid).trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 20)); }
+  if (req.body.clover_token !== undefined && String(req.body.clover_token).trim() !== '••••••') { fields.push('clover_token = ?'); values.push(String(req.body.clover_token).trim().slice(0, 200)); }
   if (req.body.name !== undefined && String(req.body.name).trim()) { fields.push('name = ?'); values.push(String(req.body.name).trim().slice(0, 80)); }
   if (req.body.address !== undefined) { fields.push('address = ?'); values.push(String(req.body.address).slice(0, 160)); }
 
@@ -804,7 +836,26 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   db.prepare(`UPDATE restaurants SET ${fields.join(', ')} WHERE id = ?`).run(...values);
 
   const updated = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
-  res.json(updated);
+  res.json(merchantRestaurant(updated));
+});
+
+// Private settings for the restaurant's own dashboard (token never returned)
+function merchantRestaurant(r) {
+  const out = { ...r };
+  out.clover_connected = Boolean(r.clover_mid && r.clover_token);
+  out.clover_token = r.clover_token ? '••••••' : '';
+  return out;
+}
+
+app.get('/api/merchants/:id/settings', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {
+  const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Restaurant not found' });
+  res.json(merchantRestaurant(r));
+});
+
+app.get('/api/merchants/:id/clover/test', auth.authMiddleware, requireRestaurantOwnership, async (req, res) => {
+  const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  res.json(await clover.testConnection(r));
 });
 
 // --- Natural voice (ElevenLabs) --------------------------------------------

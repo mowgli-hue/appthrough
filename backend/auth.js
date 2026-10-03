@@ -51,7 +51,10 @@ function generateCustomerToken(c) {
 }
 
 function customerPublic(c) {
-  return { id: c.id, name: c.name, phone: c.phone || '', email: c.email };
+  return {
+    id: c.id, name: c.name, phone: c.phone || '', email: c.email,
+    avatar: c.avatar_url || '', provider: c.auth_provider || 'email', since: c.created_at,
+  };
 }
 
 function customerAuth(req, res, next) {
@@ -92,8 +95,35 @@ function registerCustomer({ name, phone, email, password }) {
   return { customer: customerPublic(c), token: generateCustomerToken(c) };
 }
 
+// Sign in / sign up with a verified Google or Apple identity
+function socialCustomer(provider, ident, extra = {}) {
+  const col = provider === 'apple' ? 'apple_sub' : 'google_sub';
+  let c = db.prepare(`SELECT * FROM customers WHERE ${col} = ?`).get(ident.sub);
+  if (!c && ident.email && ident.emailVerified) {
+    c = db.prepare('SELECT * FROM customers WHERE email = ?').get(ident.email);
+    if (c) db.prepare(`UPDATE customers SET ${col} = ? WHERE id = ?`).run(ident.sub, c.id);
+  }
+  if (!c) {
+    const { v4: uuidv4 } = require('uuid');
+    const id = uuidv4();
+    const name = String(extra.name || ident.name || (ident.email ? ident.email.split('@')[0] : 'Guest')).trim().slice(0, 60) || 'Guest';
+    const email = ident.email || `${provider}-${ident.sub}@users.appthru.ca`;
+    const unusable = '!' + require('crypto').randomBytes(24).toString('hex');
+    db.prepare(`INSERT INTO customers (id, name, phone, email, password_hash, ${col}, avatar_url, auth_provider) VALUES (?, ?, '', ?, ?, ?, ?, ?)`)
+      .run(id, name, email, unusable, ident.sub, ident.picture || '', provider);
+    c = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+  } else if (ident.picture && !c.avatar_url) {
+    db.prepare('UPDATE customers SET avatar_url = ? WHERE id = ?').run(ident.picture, c.id);
+    c = db.prepare('SELECT * FROM customers WHERE id = ?').get(c.id);
+  }
+  return { customer: customerPublic(c), token: generateCustomerToken(c), isNew: !c.phone };
+}
+
 function loginCustomer(email, password) {
   const c = db.prepare('SELECT * FROM customers WHERE email = ?').get(String(email || '').toLowerCase().trim());
+  if (c && String(c.password_hash).startsWith('!')) {
+    return { error: `This account uses ${c.auth_provider === 'apple' ? 'Apple' : 'Google'} sign-in — tap that button instead` };
+  }
   if (!c || !verifyPassword(String(password || ''), c.password_hash)) return { error: 'Wrong email or password' };
   return { customer: customerPublic(c), token: generateCustomerToken(c) };
 }
@@ -126,5 +156,5 @@ function loginMerchant(email, password) {
 
 module.exports = {
   authMiddleware, registerMerchant, loginMerchant, verifyToken,
-  customerAuth, optionalCustomerId, registerCustomer, loginCustomer, customerPublic,
+  customerAuth, optionalCustomerId, registerCustomer, loginCustomer, customerPublic, socialCustomer,
 };

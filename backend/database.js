@@ -97,6 +97,8 @@ addRestaurantCol('drive_thru_enabled', 'INTEGER DEFAULT 1');
 addRestaurantCol('prep_minutes', 'INTEGER DEFAULT 15');
 addRestaurantCol('notification_phone', 'TEXT');
 addRestaurantCol('notification_email', 'TEXT');
+addRestaurantCol('clover_mid', 'TEXT');
+addRestaurantCol('clover_token', 'TEXT');
 
 // Size/portion options per item (JSON: [{"name":"Regular","price":3.29}, ...])
 const menuCols0 = db.prepare('PRAGMA table_info(menu_items)').all().map(c => c.name);
@@ -147,6 +149,10 @@ db.exec(`
   );
 `);
 addCol('customer_id', 'TEXT');
+const customerCols = db.prepare('PRAGMA table_info(customers)').all().map(c => c.name);
+for (const [n, t] of [['google_sub', 'TEXT'], ['apple_sub', 'TEXT'], ['avatar_url', 'TEXT'], ['auth_provider', "TEXT DEFAULT 'email'"]]) {
+  if (!customerCols.includes(n)) db.exec(`ALTER TABLE customers ADD COLUMN ${n} ${t}`);
+}
 
 // Add payment_id to orders
 addCol('payment_id', 'TEXT');

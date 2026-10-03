@@ -47,7 +47,7 @@ function OrderBoard() {
   return (
     <div className="board-page">
       <div className="board-header">
-        <span className="board-brand">{restaurantName || 'The Chai Bar'}</span>
+        <span className="board-brand">{restaurantName || 'App-Thru'}</span>
         <span className="board-title">Order Status</span>
       </div>
       <div className="board-columns">

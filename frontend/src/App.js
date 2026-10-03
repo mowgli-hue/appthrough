@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Link } from 'react-router-dom';
-import { CartProvider } from './context/CartContext';
+import { CartProvider, useCart } from './context/CartContext';
 import Navbar from './components/Navbar';
 import CartSidebar from './components/CartSidebar';
 import Home from './pages/Home';
@@ -23,6 +23,25 @@ import { Privacy, Support } from './pages/Legal';
 import { SignIn, AccountPage } from './pages/Account';
 import AppHome from './pages/AppHome';
 import { isNativeApp, getCustomerToken, isGuest, openInBrowser } from './utils/customer';
+
+// Mobile app bottom tabs
+function TabBar({ onCart }) {
+  const { pathname } = useLocation();
+  const { itemCount } = useCart();
+  const tab = (to, label, icon, active) => (
+    <Link to={to} className={`tab ${active ? 'on' : ''}`}><span className="tab-ic">{icon}</span><span>{label}</span></Link>
+  );
+  return (
+    <nav className="app-tabbar">
+      {tab('/', 'Home', '⌂', pathname === '/')}
+      {tab('/orders', 'Orders', '☰', pathname.startsWith('/orders') || pathname.startsWith('/order/'))}
+      <button type="button" className="tab" onClick={onCart}>
+        <span className="tab-ic">🛍{itemCount > 0 && <b className="tab-badge">{itemCount}</b>}</span><span>Cart</span>
+      </button>
+      {tab('/account', 'Account', '◯', pathname.startsWith('/account'))}
+    </nav>
+  );
+}
 
 // In the mobile app: start at sign-in, and send restaurant/merchant pages
 // to the phone's browser instead of showing them inside the app.
@@ -56,9 +75,9 @@ function Shell() {
   const isAuth = pathname.startsWith('/signin');
 
   return (
-        <div className="app">
+        <div className={`app ${native && !isAuth ? 'has-tabbar' : ''}`}>
           <NativeGate />
-          {isKiosk || isAuth ? null : isMerchantArea ? (
+          {isKiosk || isAuth || (native && /^\/(account|orders)?$/.test(pathname)) ? null : isMerchantArea ? (
             <nav className="portal-nav">
               <Link to="/" className="portal-brand">🛵 App-Thru <span>Merchant</span></Link>
             </nav>
@@ -89,6 +108,7 @@ function Shell() {
               <Route path="/support" element={<Support />} />
             </Routes>
           </main>
+          {native && !isAuth && !isMerchantArea && !isKiosk && <TabBar onCart={() => setCartOpen(true)} />}
           {!isMerchantArea && !isKiosk && !isAuth && (
             <CartSidebar isOpen={cartOpen} onClose={() => setCartOpen(false)} />
           )}

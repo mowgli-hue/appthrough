@@ -12,17 +12,27 @@
 const API_BASE = process.env.CLOVER_API_BASE || 'https://api.clover.com';
 const PRINT = process.env.CLOVER_PRINT !== '0';
 
-function credsFor(restaurantName) {
+// Each restaurant stores its own Clover merchant ID + API token (set in the
+// merchant dashboard). Older setups that used Railway env vars still work.
+function credsFor(restaurant) {
+  if (restaurant && restaurant.clover_mid && restaurant.clover_token) {
+    return { mid: restaurant.clover_mid, token: restaurant.clover_token, key: restaurant.name || restaurant.id };
+  }
+  return legacyEnvCreds(restaurant && restaurant.name);
+}
+
+function legacyEnvCreds(restaurantName) {
   const n = String(restaurantName || '').toLowerCase();
-  let key = null;
-  if (n.includes('white rock') || n.includes('whiterock') || n.includes('marine')) key = 'WHITEROCK';
-  else if (n.includes('delta') || n.includes('scott') || n.includes('120 st')) key = 'DELTA';
-  else if (n.includes('king george') || n.includes('kinggeorge') || n.includes('surrey')) key = 'KINGGEORGE';
-  if (!key) return null;
-  const mid = process.env['CLOVER_MID_' + key];
-  const token = process.env['CLOVER_TOKEN_' + key];
-  if (!mid || !token) return null;
-  return { mid, token, key };
+  const map = (process.env.CLOVER_LEGACY_KEYS || 'WHITEROCK:white rock|whiterock|marine;DELTA:delta|scott|120 st;KINGGEORGE:king george|kinggeorge|surrey')
+    .split(';').map(s => s.split(':')).filter(p => p.length === 2);
+  for (const [key, words] of map) {
+    if (words.split('|').some(w => w && n.includes(w))) {
+      const mid = process.env['CLOVER_MID_' + key];
+      const token = process.env['CLOVER_TOKEN_' + key];
+      if (mid && token) return { mid, token, key };
+    }
+  }
+  return null;
 }
 
 async function cv(creds, method, path, body) {
@@ -62,7 +72,12 @@ const cents = (x) => Math.round(Number(x || 0) * 100);
  *          service_fee, total, customer_name, note, restaurant_name }
  */
 async function pushOrder(order) {
-  const creds = credsFor(order.restaurant_name);
+  let restaurant = null;
+  try {
+    const db = require('./database');
+    restaurant = order.restaurant_id ? db.prepare('SELECT * FROM restaurants WHERE id = ?').get(order.restaurant_id) : null;
+  } catch {}
+  const creds = credsFor(restaurant || { name: order.restaurant_name });
   if (!creds) {
     if (process.env.CLOVER_DEBUG) console.log('[clover] no creds for', order.restaurant_name);
     return false;
@@ -115,27 +130,18 @@ async function pushOrder(order) {
   }
 }
 
-// Diagnostic: test each configured location's token with a harmless GET
-async function testConnections() {
-  const keys = ['KINGGEORGE', 'DELTA', 'WHITEROCK'];
-  const out = {};
-  for (const key of keys) {
-    const mid = process.env['CLOVER_MID_' + key];
-    const token = process.env['CLOVER_TOKEN_' + key];
-    if (!mid || !token) { out[key] = 'not configured'; continue; }
-    try {
-      const res = await fetch(`${API_BASE}/v3/merchants/${mid}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const m = await res.json();
-        out[key] = `OK — connected to "${m.name}"`;
-      } else {
-        out[key] = `FAILED — HTTP ${res.status}${res.status === 401 ? ' (bad token)' : res.status === 403 ? ' (token lacks permission or wrong merchant)' : ''}`;
-      }
-    } catch (e) { out[key] = 'FAILED — ' + e.message; }
-  }
-  return out;
+// Test one restaurant's Clover connection with a harmless read
+async function testConnection(restaurant) {
+  const creds = credsFor(restaurant);
+  if (!creds) return { ok: false, message: 'Not connected — add your Clover Merchant ID and API token.' };
+  try {
+    const res = await fetch(`${API_BASE}/v3/merchants/${creds.mid}`, { headers: { Authorization: `Bearer ${creds.token}` } });
+    if (res.ok) {
+      const m = await res.json();
+      return { ok: true, message: `Connected to "${m.name}"` };
+    }
+    return { ok: false, message: res.status === 401 ? 'Clover rejected the token (401). Check the Merchant ID and token.' : `Clover error (HTTP ${res.status})` };
+  } catch (e) { return { ok: false, message: 'Could not reach Clover: ' + e.message }; }
 }
 
-module.exports = { pushOrder, credsFor, testConnections };
+module.exports = { pushOrder, credsFor, testConnection };

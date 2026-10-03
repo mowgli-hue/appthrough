@@ -1,7 +1,7 @@
 // New-order email alerts via Resend (https://resend.com).
 // Configure with env vars; disabled gracefully when unset:
 //   RESEND_API_KEY  - required to enable
-//   RESEND_FROM     - optional, e.g. 'The Chai Bar Orders <orders@appthru.ca>'
+//   RESEND_FROM     - optional, e.g. 'App-Thru Orders <orders@appthru.ca>'
 const KEY = process.env.RESEND_API_KEY || '';
 const FROM = process.env.RESEND_FROM || 'App-Thru Orders <orders@appthru.ca>';
 

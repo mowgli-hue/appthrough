@@ -33,6 +33,7 @@
 		"AppPlugin",
 		"CAPBrowserPlugin",
 		"SplashScreenPlugin",
-		"StatusBarPlugin"
+		"StatusBarPlugin",
+		"SocialLoginPlugin"
 	]
 }

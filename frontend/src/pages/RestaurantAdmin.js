@@ -16,11 +16,19 @@ function RestaurantAdmin() {
     drive_thru_enabled: true,
     notification_phone: '',
     notification_email: '',
+    clover_mid: '',
+    clover_token: '',
   });
+  const [cloverStatus, setCloverStatus] = useState(null);
+  const testClover = async () => {
+    setCloverStatus({ ok: null, message: 'Testing…' });
+    const r = await fetch(`/api/merchants/${id}/clover/test`, { headers: { ...authHeaders() } });
+    setCloverStatus(r.ok ? await r.json() : { ok: false, message: 'Sign in as this restaurant to test.' });
+  };
 
   useEffect(() => {
-    fetch(`/api/restaurants/${id}`)
-      .then(r => r.json())
+    fetch(`/api/merchants/${id}/settings`, { headers: { ...authHeaders() } })
+      .then(r => (r.ok ? r.json() : fetch(`/api/restaurants/${id}`).then(x => x.json())))
       .then(data => {
         setRestaurant(data);
         setForm({
@@ -30,6 +38,8 @@ function RestaurantAdmin() {
           drive_thru_enabled: data.drive_thru_enabled !== 0,
           notification_phone: data.notification_phone || '',
           notification_email: data.notification_email || '',
+          clover_mid: data.clover_mid || '',
+          clover_token: data.clover_token || '',
         });
         setLoading(false);
       });
@@ -141,6 +151,15 @@ function RestaurantAdmin() {
               onChange={e => update('notification_email', e.target.value)}
             />
           </label>
+
+          <div className="admin-clover">
+            <strong>Clover POS (optional)</strong>
+            <p className="admin-hint">Paid App-Thru orders appear on your Clover and print automatically. In your Clover dashboard: Account &amp; Setup → API tokens → create a token with Orders, Payments and Merchant access. Your Merchant ID is in the dashboard address bar after <code>/m/</code>.</p>
+            <input className="admin-textarea" style={{ minHeight: 'auto', padding: '10px 14px' }} placeholder="Clover Merchant ID (e.g. 450SYFQ0RVPA1)" value={form.clover_mid} onChange={e => update('clover_mid', e.target.value)} />
+            <input className="admin-textarea" style={{ minHeight: 'auto', padding: '10px 14px', marginTop: 8 }} type="password" placeholder="Clover API token" value={form.clover_token} onChange={e => update('clover_token', e.target.value)} />
+            <button type="button" className="btn-secondary btn-sm" style={{ marginTop: 8 }} onClick={testClover}>Test connection</button>
+            {cloverStatus && <p className={`admin-hint ${cloverStatus.ok ? 'ok' : cloverStatus.ok === false ? 'bad' : ''}`}>{cloverStatus.message}</p>}
+          </div>
 
           <label className="admin-label">
             Agent Personality
