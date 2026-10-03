@@ -4,6 +4,10 @@ import { useCart } from '../context/CartContext';
 import { rememberOrder } from '../utils/myOrders';
 import { customerHeaders, getCustomer } from '../utils/customer';
 
+// Separate Apple Pay button is off: Apple Pay inside the payment list is the
+// proven path (see Stripe history). Flip to true only after testing on an iPhone.
+const USE_EXPRESS_BUTTON = false;
+
 function Checkout() {
   const { cart, subtotal, tax, clearCart, itemCount } = useCart();
   const navigate = useNavigate();
@@ -90,7 +94,6 @@ function Checkout() {
       // We already collect name + phone in our own form; never ask for address.
       fields: { billingDetails: { name: 'never', phone: 'never', address: 'auto' } },
       terms: { card: 'never' },
-      wallets: { applePay: 'never', googlePay: 'never' },
     });
     pe.mount(payMountRef.current);
     elementsRef.current = elements;
@@ -99,7 +102,7 @@ function Checkout() {
 
   // Apple Pay / Google Pay: dedicated express button (opens the wallet sheet directly)
   useEffect(() => {
-    if (!stripeReady || !expressMountRef.current || amountCents <= 0) return;
+    if (!USE_EXPRESS_BUTTON || !stripeReady || !expressMountRef.current || amountCents <= 0) return;
     const els = stripeRef.current.elements({
       mode: 'payment',
       amount: amountCents,
