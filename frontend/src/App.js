@@ -77,7 +77,7 @@ function Shell() {
   return (
         <div className={`app ${native && !isAuth ? 'has-tabbar' : ''}`}>
           <NativeGate />
-          {isKiosk || isAuth || (native && /^\/(account|orders)?$/.test(pathname)) ? null : isMerchantArea ? (
+          {isKiosk || isAuth || (native && /^\/(account|orders|checkout|restaurant\/[^/]+|order\/[^/]+)?$/.test(pathname)) ? null : isMerchantArea ? (
             <nav className="portal-nav">
               <Link to="/" className="portal-brand">🛵 App-Thru <span>Merchant</span></Link>
             </nav>

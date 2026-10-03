@@ -30,7 +30,7 @@ function OrderConfirmation() {
 
         // Fire notification + chime + vibration when status transitions to "ready".
         if (
-          data.order_type === 'pickup' &&
+          data.order_type !== 'delivery' &&
           prevStatusRef.current &&
           prevStatusRef.current !== 'ready' &&
           data.status === 'ready'
@@ -96,14 +96,21 @@ function OrderConfirmation() {
   };
 
   if (loading) {
-    return <div className="loading"><div className="spinner"></div></div>;
+    return <div className="v2"><div className="loading"><div className="spinner"></div></div></div>;
   }
 
   if (!order) {
-    return <div className="error-page"><h2>Order not found</h2></div>;
+    return (
+      <div className="v2"><div className="v2-empty">
+        <div className="ic">🧾</div><h2>Order not found</h2>
+        <p>Check the link in your text message.</p>
+        <Link to="/" className="v2-btn">Go home</Link>
+      </div></div>
+    );
   }
 
-  const isPickup = order.order_type === 'pickup';
+  const isPickup = order.order_type !== 'delivery'; // pickup or dine-in
+  const isDineIn = order.order_type === 'dinein';
   const cancelOrder = async () => {
     if (!window.confirm('Cancel this order? Your payment will be refunded in full.')) return;
     setCancelling(true);
@@ -124,161 +131,103 @@ function OrderConfirmation() {
 
   const currentStepIndex = PICKUP_STEPS.findIndex(s => s.key === order.status);
 
+  const st = order.status;
+  const title = st === 'ready' ? "It's ready!"
+    : st === 'picked_up' ? 'Enjoy your meal'
+    : st === 'cancelled' ? 'Order cancelled'
+    : 'Order received';
+  const sub = st === 'ready' ? (isDineIn ? 'Come grab it at the counter and show your code.' : `Walk up to ${order.restaurant_name} and show your code.`)
+    : st === 'picked_up' ? 'Thanks for ordering with App-Thru.'
+    : st === 'cancelled' ? 'Your payment has been refunded in full.'
+    : `${order.restaurant_name} is preparing it now. We'll text you when it's ready.`;
+  const icon = st === 'ready' ? '🛎️' : st === 'picked_up' ? '✅' : st === 'cancelled' ? '↩︎' : '👨‍🍳';
+  const code = String(order.pickup_code || '');
+  const [codeA, codeB] = code.includes('-') ? code.split('-') : [code, ''];
+
   return (
-    <div className="order-confirmation">
-      <div className="confirmation-card">
-        {isPickup ? (
-          <>
-            <div className="confirmation-header pickup-header">
-              <span className="confirmation-icon">
-                {order.status === 'ready' ? '🛎️' : order.status === 'picked_up' ? '✅' : '🚶'}
-              </span>
-              <h1>
-                {order.status === 'ready'
-                  ? 'Your order is ready!'
-                  : order.status === 'picked_up'
-                  ? 'Thanks for stopping by!'
-                  : 'Walk-up Pickup Confirmed'}
-              </h1>
-              <p>
-                {order.status === 'ready'
-                  ? `Walk up to ${order.restaurant_name} and show your code.`
-                  : order.status === 'picked_up'
-                  ? 'Enjoy your meal!'
-                  : `We'll notify you on your phone when it's ready at ${order.restaurant_name}.`}
-              </p>
+    <div className="v2">
+      <div className="v2-track">
+        <div className={`v2-status ${st}`}>
+          <div className="ic">{icon}</div>
+          <h1>{title}</h1>
+          <p>{sub}</p>
+        </div>
+
+        {isPickup && code && st !== 'cancelled' && (
+          <div className="v2-ticket">
+            <div className="lbl">{isDineIn ? 'Dine-in code' : 'Pickup code'}</div>
+            <div className="code">{codeB ? <>{codeA}<em>-</em>{codeB}</> : code}</div>
+            <div className="hint">Show this at the counter</div>
+            <div className="perf" />
+            <div className="meta">
+              <div><span>Name</span><b>{order.customer_name || 'Guest'}</b></div>
+              <div><span>Type</span><b>{isDineIn ? 'Dine-in' : 'Pickup'}</b></div>
+              <div><span>Total</span><b>${order.total.toFixed(2)}</b></div>
             </div>
+          </div>
+        )}
 
-            <div className="pickup-code-box">
-              <div className="pickup-code-label">Your pickup code</div>
-              <div className="pickup-code">{order.pickup_code}</div>
-              <div className="pickup-code-sub">Show this to the staff when you arrive</div>
-            </div>
-
-            {order.queue_position > 0 && (
-              <div className="queue-position-box">
-                <div className="queue-number">#{order.queue_position}</div>
-                <div className="queue-details">
-                  <strong>You're #{order.queue_position} in line</strong>
-                  <span>~{order.estimated_minutes} min estimated wait</span>
-                </div>
-              </div>
-            )}
-            {order.queue_position === 0 && order.status === 'ready' && (
-              <div className="queue-position-box queue-ready">
-                <div className="queue-number">NOW</div>
-                <div className="queue-details">
-                  <strong>Your order is ready!</strong>
-                  <span>Walk up and grab it</span>
-                </div>
-              </div>
-            )}
-
-            <div className="pickup-progress">
+        {isPickup && st !== 'cancelled' && (
+          <div className="v2-card">
+            <div className="v2-steps">
               {PICKUP_STEPS.map((step, i) => {
                 const done = i <= currentStepIndex;
                 const active = i === currentStepIndex;
                 return (
-                  <div
-                    key={step.key}
-                    className={`pickup-step ${done ? 'done' : ''} ${active ? 'active' : ''}`}
-                  >
-                    <div className="pickup-step-dot">{done ? step.icon : i + 1}</div>
-                    <div className="pickup-step-label">{step.label}</div>
+                  <div key={step.key} className={`v2-stp ${done ? 'done' : ''} ${active ? 'active' : ''}`}>
+                    <div className="d">{done && !active ? '✓' : i + 1}</div>
+                    <div className="t">{step.key === 'preparing' ? 'Preparing' : step.key === 'ready' ? 'Ready' : 'Picked up'}</div>
                   </div>
                 );
               })}
             </div>
-
-            {'Notification' in window && Notification.permission === 'default' && (
-              <button className="btn-primary" onClick={requestNotifications} style={{ marginBottom: '1rem' }}>
-                🔔 Enable phone notifications
-              </button>
-            )}
-            {'Notification' in window && Notification.permission === 'denied' && (
-              <p className="pickup-hint">
-                Notifications are blocked. Keep this page open — it updates in real time.
-              </p>
-            )}
-          </>
-        ) : (
-          <div className="confirmation-header">
-            <span className="confirmation-icon">✅</span>
-            <h1>Order Confirmed!</h1>
-            <p>Your order has been placed successfully</p>
           </div>
         )}
 
-        <div className="confirmation-details">
-          <div className="detail-row">
-            <span>Name</span>
-            <span>{order.customer_name || 'Guest'}</span>
-          </div>
-          <div className="detail-row">
-            <span>Restaurant</span>
-            <span>{order.restaurant_name}</span>
-          </div>
-          <div className="detail-row">
-            <span>Type</span>
-            <span>{isPickup ? '🚶 Walk-up pickup' : '🛵 Delivery'}</span>
-          </div>
-          <div className="detail-row">
-            <span>Status</span>
-            <span className={`status-badge status-${order.status}`}>
-              {order.status.replace('_', ' ')}
-            </span>
-          </div>
-          {isPickup && order.customer_phone && (
-            <div className="detail-row">
-              <span>Notify</span>
-              <span>{order.customer_phone}</span>
+        {order.queue_position > 0 && st === 'preparing' && (
+          <div className="v2-card v2-eta">
+            <div className="big">{order.estimated_minutes}<span style={{ fontSize: '.9rem' }}> min</span></div>
+            <div>
+              <strong>Estimated wait</strong>
+              <small>{order.queue_position === 1 ? "You're next in line" : `${order.queue_position - 1} order${order.queue_position - 1 === 1 ? '' : 's'} ahead of you`}</small>
             </div>
+          </div>
+        )}
+
+        {'Notification' in window && Notification.permission === 'default' && st === 'preparing' && (
+          <button className="v2-btn ghost block" onClick={requestNotifications}>🔔 Notify me on this device too</button>
+        )}
+
+        <div className="v2-card">
+          <h2 className="v2-h" style={{ marginBottom: 6 }}>{order.restaurant_name}</h2>
+          <div className="v2-items">
+            {order.items.map((item, i) => (
+              <div key={i} className="v2-item">
+                <span className="v2-qty">{item.quantity}</span>
+                <span className="nm">{item.name}</span>
+                <span className="pr">${(item.price * item.quantity).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <div className="v2-row"><span>Subtotal</span><span>${order.subtotal.toFixed(2)}</span></div>
+            <div className="v2-row"><span>GST</span><span>${order.tax.toFixed(2)}</span></div>
+            {order.service_fee > 0 && <div className="v2-row"><span>App-Thru fee</span><span>${Number(order.service_fee).toFixed(2)}</span></div>}
+            <div className="v2-row total"><span>Total</span><span>${order.total.toFixed(2)}</span></div>
+          </div>
+        </div>
+
+        <div className="v2-actions">
+          {cancelMsg && <p className="v2-msg">{cancelMsg}</p>}
+          {order.restaurant_phone && (
+            <a className="v2-btn ghost block" href={`tel:${order.restaurant_phone}`}>📞 Call {order.restaurant_name}</a>
           )}
-        </div>
-
-        <div className="confirmation-items">
-          <h3>Items Ordered</h3>
-          {order.items.map((item, i) => (
-            <div key={i} className="confirmation-item">
-              <span>{item.quantity}x {item.name}</span>
-              <span>${(item.price * item.quantity).toFixed(2)}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="confirmation-total">
-          <div className="summary-row">
-            <span>Subtotal</span><span>${order.subtotal.toFixed(2)}</span>
-          </div>
-          <div className="summary-row">
-            <span>{isPickup ? 'Pickup' : 'Delivery'}</span>
-            <span>{isPickup ? 'FREE' : `$${order.delivery_fee.toFixed(2)}`}</span>
-          </div>
-          <div className="summary-row">
-            <span>Tax</span><span>${order.tax.toFixed(2)}</span>
-          </div>
-          <div className="summary-row total">
-            <span>Total</span><span>${order.total.toFixed(2)}</span>
-          </div>
-        </div>
-
-        <div className="order-help">
-          {cancelMsg && <p className="cancel-msg">{cancelMsg}</p>}
-          {order.status === 'preparing' && !cancelMsg && (
-            <button className="btn-cancel-order" onClick={cancelOrder} disabled={cancelling}>
-              {cancelling ? 'Cancelling…' : 'Cancel order (within 5 min — full refund)'}
+          <Link to="/" className="v2-btn block">Order something else</Link>
+          {st === 'preparing' && !cancelMsg && (
+            <button className="v2-cancel" onClick={cancelOrder} disabled={cancelling}>
+              {cancelling ? 'Cancelling…' : 'Cancel order (within 5 min · full refund)'}
             </button>
           )}
-          {order.restaurant_phone && (
-            <a className="help-link" href={`tel:${order.restaurant_phone}`}>
-              📞 Need help? Call {order.restaurant_name}
-            </a>
-          )}
-        </div>
-
-        <div className="confirmation-actions">
-          <Link to="/orders" className="btn-secondary">View All Orders</Link>
-          <Link to="/" className="btn-primary">Order More</Link>
         </div>
       </div>
     </div>

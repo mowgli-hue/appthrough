@@ -17,6 +17,7 @@ function Checkout() {
   const [name, setName] = useState(saved.name || '');
   const [phone, setPhone] = useState(saved.phone || '');
   const [note, setNote] = useState('');
+  const [showNote, setShowNote] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
 
@@ -71,20 +72,25 @@ function Checkout() {
       amount: amountCents,
       currency: currencyRef.current,
       paymentMethodTypes: ['card', 'link'],
+      fonts: [{ cssSrc: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap' }],
       appearance: {
+        theme: 'stripe',
         variables: {
-          colorPrimary: '#00cc6a',
-          borderRadius: '12px',
+          colorPrimary: '#141414',
+          colorText: '#141414',
+          colorTextSecondary: '#8a847c',
+          colorDanger: '#b42318',
+          fontFamily: '"Plus Jakarta Sans", system-ui, sans-serif',
           fontSizeBase: '16px',
-          colorText: '#1a1a1a',
-          colorTextSecondary: '#777',
+          borderRadius: '14px',
           spacingUnit: '4px',
         },
         rules: {
-          '.AccordionItem': { border: '1.5px solid #e8e8e8', boxShadow: 'none' },
-          '.AccordionItem--selected': { borderColor: '#0a8a43', backgroundColor: '#f7fdf9' },
-          '.Input': { boxShadow: 'none', border: '1.5px solid #e4e4e4' },
-          '.Input:focus': { borderColor: '#0a8a43', boxShadow: '0 0 0 3px rgba(10,138,67,.12)' },
+          '.AccordionItem': { border: '1.5px solid #ede7de', boxShadow: 'none' },
+          '.AccordionItem--selected': { borderColor: '#141414', backgroundColor: '#fffcf8' },
+          '.Input': { boxShadow: 'none', border: '1.5px solid #e2dbd0' },
+          '.Input:focus': { borderColor: '#141414', boxShadow: '0 0 0 3px rgba(20,20,20,.07)' },
+          '.Label': { fontWeight: '600' },
         },
       },
     });
@@ -254,130 +260,110 @@ function Checkout() {
     }
   };
 
+  const payLabel = placing
+    ? 'Placing order…'
+    : `${stripeReady && payMethod === 'card' ? 'Pay' : 'Place order'} · $${effectiveTotal.toFixed(2)}`;
+
   return (
-    <div className="checkout-page">
-      <div className="checkout-container">
-        <div className="checkout-main">
-          <h1>Checkout</h1>
-
-          <div className="checkout-section">
-            <div className="ordertype-toggle" role="radiogroup" aria-label="Order type">
-              <button
-                type="button"
-                className={`ordertype-btn${orderType === 'pickup' ? ' active' : ''}`}
-                onClick={() => setOrderType('pickup')}
-              >
-                🥡 Pickup
-              </button>
-              <button
-                type="button"
-                className={`ordertype-btn${orderType === 'dinein' ? ' active' : ''}`}
-                onClick={() => setOrderType('dinein')}
-              >
-                🍽️ Dine-in
-              </button>
-            </div>
-            {orderType === 'dinein' && (
-              <p className="dinein-hint">Seating is first-come, first-served — a table isn't guaranteed at busy times.</p>
-            )}
-            <h2>Your Info</h2>
-            <p className="section-hint">
-              Both fields are required — we text your phone the moment your order is ready.
-            </p>
-            <input
-              type="text"
-              className="address-input"
-              placeholder="Your name *"
-              autoComplete="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <input
-              type="tel"
-              className="address-input"
-              placeholder="Mobile number *"
-              autoComplete="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              style={{ marginTop: '0.5rem' }}
-              required
-            />
-            <textarea
-              className="address-input order-note-input"
-              placeholder="Note for the kitchen (optional) — e.g. less sugar, no onions, extra spicy"
-              value={note}
-              onChange={(e) => setNote(e.target.value.slice(0, 300))}
-              rows={2}
-              style={{ marginTop: '0.5rem' }}
-            />
-          </div>
-
-          <div className="checkout-section">
-            <h2>Order from {cart.restaurantName}</h2>
-            <div className="checkout-items">
-              {cart.items.map(item => (
-                <div key={item.id} className="checkout-item">
-                  <div>
-                    <span className="item-qty">{item.quantity}x</span>
-                    <span>{item.name}</span>
-                  </div>
-                  <span>${(item.price * item.quantity).toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
+    <div className="v2">
+      <div className="v2-checkout">
+        <div className="v2-head">
+          <button className="v2-back" onClick={() => navigate(-1)} aria-label="Back">←</button>
+          <div>
+            <p className="v2-eyebrow">Checkout</p>
+            <h1>{cart.restaurantName}</h1>
           </div>
         </div>
 
-        <div className="checkout-sidebar">
-          <div className="order-summary">
-            <h2>Order Summary</h2>
-            {stripeReady && (
-              <div className="pay-method">
-                <div className="pay-option selected">💳 Pay — card, Apple Pay, Google Pay</div>
-                <div className={`express-pay ${expressReady ? 'show' : ''}`}>
-                  <div ref={expressMountRef} />
-                  {expressReady && <div className="pay-divider"><span>or pay with card</span></div>}
-                </div>
-                <div className="link-tip">
-                  <span className="link-tip-icon">⚡</span>
-                  <span><strong>First time?</strong> Pick <strong>Link</strong> below to save your card securely — next visit it’s one-tap checkout, no typing your card again.</span>
-                </div>
-                <div className="card-element-box" ref={payMountRef} />
-              </div>
-            )}
-            <div className="summary-row">
-              <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
-            </div>
-            <div className="summary-row">
-              <span>Tax</span>
-              <span>${tax.toFixed(2)}</span>
-            </div>
-            <div className="summary-row">
-              <span>App-Thru Fee</span>
-              <span>${APPTHRU_FEE.toFixed(2)}</span>
-            </div>
-            <div className="summary-row total">
-              <span>Total</span>
-              <span>${effectiveTotal.toFixed(2)}</span>
-            </div>
-            {error && <div className="checkout-error">{error}</div>}
-            <button
-              className="place-order-btn"
-              onClick={handlePlaceOrder}
-              disabled={placing}
-            >
-              {placing
-                ? 'Placing Order...'
-                : `${isPickup ? 'Place Pickup Order' : 'Place Dine-in Order'} - $${effectiveTotal.toFixed(2)}`}
+        <section className="v2-card">
+          <h2 className="v2-h"><span className="v2-step">1</span> How would you like it?</h2>
+          <div className="v2-seg" role="radiogroup" aria-label="Order type">
+            <button type="button" role="radio" aria-checked={orderType === 'pickup'} className={orderType === 'pickup' ? 'on' : ''} onClick={() => setOrderType('pickup')}>
+              <span className="t">🥡 Pickup</span>
+              <span className="s">Walk up and grab it when it's ready</span>
             </button>
-            <p className="pickup-hint">
-              {isPickup
-                ? "⏰ You'll get a text when your food is ready. Just walk up & show your pickup code."
-                : "⏰ Order now, grab a seat if one's free — we'll text you when your food is ready."}
-            </p>
+            <button type="button" role="radio" aria-checked={orderType === 'dinein'} className={orderType === 'dinein' ? 'on' : ''} onClick={() => setOrderType('dinein')}>
+              <span className="t">🍽️ Dine-in</span>
+              <span className="s">Enjoy it here at the restaurant</span>
+            </button>
           </div>
+          {orderType === 'dinein' && (
+            <p className="v2-note-hint">Seating is first-come, first-served — a table isn't guaranteed at busy times.</p>
+          )}
+        </section>
+
+        <section className="v2-card">
+          <h2 className="v2-h"><span className="v2-step">2</span> Your details</h2>
+          <p className="v2-sub">We'll text you the moment your order is ready.</p>
+          <div className="v2-field">
+            <label htmlFor="co-name">Name</label>
+            <input id="co-name" type="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder=" " required />
+          </div>
+          <div className="v2-field">
+            <label htmlFor="co-phone">Mobile number</label>
+            <input id="co-phone" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder=" " required />
+          </div>
+          {showNote ? (
+            <div className="v2-field" style={{ marginBottom: 0 }}>
+              <label htmlFor="co-note">Note for the kitchen</label>
+              <textarea id="co-note" value={note} onChange={(e) => setNote(e.target.value.slice(0, 300))} placeholder=" " rows={2} />
+            </div>
+          ) : (
+            <button type="button" className="v2-linkbtn" onClick={() => setShowNote(true)}>+ Add a note for the kitchen</button>
+          )}
+        </section>
+
+        <section className="v2-card">
+          <h2 className="v2-h" style={{ justifyContent: 'space-between' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span className="v2-step">3</span> Your order</span>
+            <button type="button" className="v2-linkbtn" onClick={() => navigate(`/restaurant/${cart.restaurantId}`)}>Edit</button>
+          </h2>
+          <div className="v2-items">
+            {cart.items.map(item => (
+              <div key={item.id} className="v2-item">
+                <span className="v2-qty">{item.quantity}</span>
+                <span className="nm">{item.name}</span>
+                <span className="pr">${(item.price * item.quantity).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div className="v2-row"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+            <div className="v2-row"><span>GST</span><span>${tax.toFixed(2)}</span></div>
+            <div className="v2-row"><span>App-Thru fee</span><span>${APPTHRU_FEE.toFixed(2)}</span></div>
+            <div className="v2-row total"><span>Total</span><span>${effectiveTotal.toFixed(2)}</span></div>
+          </div>
+        </section>
+
+        {stripeReady && (
+          <section className="v2-card">
+            <h2 className="v2-h"><span className="v2-step">4</span> Payment</h2>
+            <div className={`express-pay ${expressReady ? 'show' : ''}`}>
+              <div ref={expressMountRef} />
+              {expressReady && <div className="pay-divider"><span>or pay with card</span></div>}
+            </div>
+            <div className="v2-tip">
+              <span>⚡</span>
+              <span><strong>Tip:</strong> choose <strong>Link</strong> to save your card — next time it's one tap.</span>
+            </div>
+            <div className="card-element-box" ref={payMountRef} />
+            <div className="v2-secure">🔒 Payments secured by Stripe · App-Thru never sees your card</div>
+          </section>
+        )}
+
+        {error && <div className="v2-error">{error}</div>}
+
+        <p className="v2-sub" style={{ textAlign: 'center' }}>
+          {isPickup
+            ? "Walk up when we text you and show your pickup code."
+            : "Grab a seat if one's free — we'll text you when your food is ready."}
+        </p>
+      </div>
+
+      <div className="v2-paybar">
+        <div className="v2-paybar-inner">
+          <div className="sum"><small>Total</small><strong>${effectiveTotal.toFixed(2)}</strong></div>
+          <button className="v2-btn" onClick={handlePlaceOrder} disabled={placing}>{payLabel}</button>
         </div>
       </div>
     </div>

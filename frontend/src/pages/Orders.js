@@ -26,45 +26,40 @@ function Orders() {
   }, []);
 
   if (loading) {
-    return <div className="loading"><div className="spinner"></div></div>;
+    return <div className="v2"><div className="loading"><div className="spinner"></div></div></div>;
   }
 
   return (
-    <div className="orders-page">
-      <h1>Your Orders</h1>
-
-      {orders.length === 0 ? (
-        <div className="no-results">
-          <span className="no-results-icon">📋</span>
-          <h2>No orders yet</h2>
-          <p>Orders you place on this phone will appear here</p>
-          <Link to="/" className="btn-primary">Browse Restaurants</Link>
-        </div>
-      ) : (
-        <div className="orders-list">
-          {orders.map(order => (
-            <Link to={`/order/${order.id}`} key={order.id} className="order-card">
-              <div className="order-card-header">
+    <div className="v2">
+      <div className="v2-orders">
+        <p className="v2-eyebrow">History</p>
+        <h1>Your orders</h1>
+        {orders.length === 0 ? (
+          <div className="v2-empty">
+            <div className="ic">🧾</div>
+            <h2>No orders yet</h2>
+            <p>When you order, it'll show up here so you can track it.</p>
+            <Link to="/" className="v2-btn">Find something good</Link>
+          </div>
+        ) : (
+          orders.map(order => (
+            <Link to={`/order/${order.id}`} key={order.id} className="v2-card v2-ocard">
+              <div className="top">
                 <div>
                   <h3>{order.restaurant_name}</h3>
-                  <p className="order-date">
-                    {formatDate(order.created_at)}
-                  </p>
+                  <div className="when">{formatDate(order.created_at)}</div>
                 </div>
-                <span className={`status-badge status-${order.status}`}>{order.status}</span>
+                <span className={`v2-st ${order.status}`}>{String(order.status).replace('_', ' ')}</span>
               </div>
-              <div className="order-card-items">
-                {order.items.map((item, i) => (
-                  <span key={i}>{item.quantity}x {item.name}{i < order.items.length - 1 ? ', ' : ''}</span>
-                ))}
-              </div>
-              <div className="order-card-total">
-                <span>Total: ${order.total.toFixed(2)}</span>
+              <div className="its">{(order.items || []).map(i => `${i.quantity}× ${i.name}`).join(', ')}</div>
+              <div className="bot">
+                <span className="code">{order.pickup_code}</span>
+                <span>${Number(order.total).toFixed(2)} ›</span>
               </div>
             </Link>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
     </div>
   );
 }
