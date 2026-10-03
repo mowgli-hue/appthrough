@@ -31,6 +31,7 @@
 	},
 	"packageClassList": [
 		"AppPlugin",
+		"CAPBrowserPlugin",
 		"SplashScreenPlugin",
 		"StatusBarPlugin"
 	]

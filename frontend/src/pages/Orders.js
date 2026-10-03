@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../utils/time';
 import { myOrderIds } from '../utils/myOrders';
+import { getCustomerToken, customerHeaders } from '../utils/customer';
 import { Link } from 'react-router-dom';
 
 function Orders() {
@@ -9,18 +10,19 @@ function Orders() {
 
   useEffect(() => {
     const ids = myOrderIds();
-    if (!ids.length) {
-      setOrders([]);
+    const device = ids.length
+      ? fetch('/api/orders?ids=' + ids.join(',')).then(r => r.json()).catch(() => [])
+      : Promise.resolve([]);
+    const account = getCustomerToken()
+      ? fetch('/api/customers/me/orders', { headers: customerHeaders() }).then(r => (r.ok ? r.json() : [])).catch(() => [])
+      : Promise.resolve([]);
+    Promise.all([device, account]).then(([a, b]) => {
+      const byId = new Map();
+      [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].forEach(o => byId.set(o.id, { ...byId.get(o.id), ...o }));
+      const merged = [...byId.values()].sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+      setOrders(merged);
       setLoading(false);
-      return;
-    }
-    fetch('/api/orders?ids=' + ids.join(','))
-      .then(r => r.json())
-      .then(data => {
-        setOrders(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    });
   }, []);
 
   if (loading) {

@@ -362,13 +362,13 @@ app.post('/api/orders', orderLimiter, (req, res) => {
   db.prepare(`
     INSERT INTO orders (
       id, restaurant_id, items, subtotal, delivery_fee, tax, service_fee, total,
-      delivery_address, order_type, pickup_code, customer_name, customer_phone, status, note
+      delivery_address, order_type, pickup_code, customer_name, customer_phone, status, note, customer_id
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     orderId, restaurant_id, JSON.stringify(items), subtotal, delivery_fee, tax, service_fee, total,
     delivery_address || '', type, pickupCode, customer_name || '', customer_phone || '',
-    initialStatus, note,
+    initialStatus, note, auth.optionalCustomerId(req),
   );
 
   // Notifications go out now for pay-at-pickup orders; card orders notify
@@ -573,6 +573,54 @@ app.post('/api/orders/:id/cancel', orderLimiter, async (req, res) => {
 // Clover connection test (merchant-only)
 app.get('/api/clover/test', auth.authMiddleware, async (req, res) => {
   res.json(await clover.testConnections());
+});
+
+// ---- Customer accounts (mobile app) -------------------------------------
+app.post('/api/customers/register', authLimiter, (req, res) => {
+  const r = auth.registerCustomer(req.body || {});
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.status(201).json(r);
+});
+
+app.post('/api/customers/login', authLimiter, (req, res) => {
+  const { email, password } = req.body || {};
+  const r = auth.loginCustomer(email, password);
+  if (r.error) return res.status(401).json({ error: r.error });
+  res.json(r);
+});
+
+app.get('/api/customers/me', auth.customerAuth, (req, res) => {
+  res.json({ customer: auth.customerPublic(req.customer) });
+});
+
+app.patch('/api/customers/me', auth.customerAuth, (req, res) => {
+  const name = req.body.name !== undefined ? String(req.body.name).trim().slice(0, 60) : req.customer.name;
+  const phone = req.body.phone !== undefined ? String(req.body.phone).replace(/\D/g, '').slice(-10) : req.customer.phone;
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (phone && phone.length !== 10) return res.status(400).json({ error: 'Phone number must be 10 digits' });
+  db.prepare('UPDATE customers SET name = ?, phone = ? WHERE id = ?').run(name, phone, req.customer.id);
+  const c = db.prepare('SELECT * FROM customers WHERE id = ?').get(req.customer.id);
+  res.json({ customer: auth.customerPublic(c) });
+});
+
+// Account deletion (App Store guideline 5.1.1(v)). Order records stay for
+// tax/accounting but are detached from the account.
+app.delete('/api/customers/me', auth.customerAuth, (req, res) => {
+  db.prepare('UPDATE orders SET customer_id = NULL WHERE customer_id = ?').run(req.customer.id);
+  db.prepare('DELETE FROM customers WHERE id = ?').run(req.customer.id);
+  res.json({ ok: true });
+});
+
+app.get('/api/customers/me/orders', auth.customerAuth, (req, res) => {
+  const orders = db.prepare(`
+    SELECT o.id, o.pickup_code, o.status, o.total, o.items, o.created_at, o.order_type,
+           r.name as restaurant_name, r.image as restaurant_image
+    FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
+    WHERE o.customer_id = ? AND o.status != 'awaiting_payment'
+    ORDER BY o.created_at DESC LIMIT 50
+  `).all(req.customer.id);
+  orders.forEach(o => { try { o.items = JSON.parse(o.items); } catch { o.items = []; } });
+  res.json(orders);
 });
 
 // Order history for ONE device: returns only the explicitly requested ids

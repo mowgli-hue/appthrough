@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { isNativeApp } from '../utils/customer';
 
 function Navbar({ onCartClick }) {
   const { itemCount } = useCart();
@@ -36,8 +37,9 @@ function Navbar({ onCartClick }) {
         </form>
 
         <div className="navbar-actions">
-          {isHome && <Link to="/register" className="nav-link nav-link-register">List Your Restaurant</Link>}
+          {isHome && !isNativeApp() && <Link to="/register" className="nav-link nav-link-register">List Your Restaurant</Link>}
           <Link to="/orders" className="nav-link">Orders</Link>
+          {isNativeApp() && <Link to="/account" className="nav-link nav-account" aria-label="Account">👤</Link>}
           <button className="cart-button" onClick={onCartClick}>
             <span className="cart-icon">🛒</span>
             {itemCount > 0 && <span className="cart-badge">{itemCount}</span>}

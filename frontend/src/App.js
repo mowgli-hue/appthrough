@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Link } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import Navbar from './components/Navbar';
 import CartSidebar from './components/CartSidebar';
@@ -20,6 +20,30 @@ import MerchantDashboard from './pages/MerchantDashboard';
 import SetupGuide from './pages/SetupGuide';
 import OrderBoard from './pages/OrderBoard';
 import { Privacy, Support } from './pages/Legal';
+import { SignIn, AccountPage } from './pages/Account';
+import AppHome from './pages/AppHome';
+import { isNativeApp, getCustomerToken, isGuest, openInBrowser } from './utils/customer';
+
+// In the mobile app: start at sign-in, and send restaurant/merchant pages
+// to the phone's browser instead of showing them inside the app.
+const MERCHANT_PATHS = /^\/(register|login|merchant|admin|kitchen|setup|kiosk|board)/;
+const OPEN_PATHS = /^\/(signin|privacy|support)/;
+function NativeGate() {
+  const { pathname, search } = useLocation();
+  const navigate = useNavigate();
+  React.useEffect(() => {
+    if (!isNativeApp()) return;
+    if (MERCHANT_PATHS.test(pathname)) {
+      openInBrowser(pathname + search);
+      navigate('/', { replace: true });
+      return;
+    }
+    if (!getCustomerToken() && !isGuest() && !OPEN_PATHS.test(pathname)) {
+      navigate('/signin', { replace: true });
+    }
+  }, [pathname, search, navigate]);
+  return null;
+}
 
 // Merchant/staff screens get a clean portal chrome instead of the
 // customer navbar (no search, cart, or 'List Your Restaurant').
@@ -28,10 +52,13 @@ function Shell() {
   const { pathname } = useLocation();
   const isMerchantArea = /^\/(merchant|admin|kitchen|login|setup)/.test(pathname);
   const isKiosk = pathname.startsWith('/kiosk') || pathname.startsWith('/board');
+  const native = isNativeApp();
+  const isAuth = pathname.startsWith('/signin');
 
   return (
         <div className="app">
-          {isKiosk ? null : isMerchantArea ? (
+          <NativeGate />
+          {isKiosk || isAuth ? null : isMerchantArea ? (
             <nav className="portal-nav">
               <Link to="/" className="portal-brand">🛵 App-Thru <span>Merchant</span></Link>
             </nav>
@@ -40,7 +67,9 @@ function Shell() {
           )}
           <main className="main-content">
             <Routes>
-              <Route path="/" element={<Home />} />
+              <Route path="/" element={native ? <AppHome /> : <Home />} />
+              <Route path="/signin" element={<SignIn />} />
+              <Route path="/account" element={<AccountPage />} />
               <Route path="/restaurant/:id" element={<Restaurant />} />
               <Route path="/search" element={<Search />} />
               <Route path="/checkout" element={<Checkout />} />
@@ -60,7 +89,7 @@ function Shell() {
               <Route path="/support" element={<Support />} />
             </Routes>
           </main>
-          {!isMerchantArea && !isKiosk && (
+          {!isMerchantArea && !isKiosk && !isAuth && (
             <CartSidebar isOpen={cartOpen} onClose={() => setCartOpen(false)} />
           )}
         </div>

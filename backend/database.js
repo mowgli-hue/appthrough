@@ -135,6 +135,19 @@ db.exec(`
   );
 `);
 
+// Customer accounts (app sign-in). Orders link via orders.customer_id.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS customers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+addCol('customer_id', 'TEXT');
+
 // Add payment_id to orders
 addCol('payment_id', 'TEXT');
 addCol('payment_status', "TEXT DEFAULT 'pending'");

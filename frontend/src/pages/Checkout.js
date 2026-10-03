@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { rememberOrder } from '../utils/myOrders';
+import { customerHeaders, getCustomer } from '../utils/customer';
 
 function Checkout() {
   const { cart, subtotal, tax, clearCart, itemCount } = useCart();
   const navigate = useNavigate();
   // Walk-up pickup or dine-in (table not guaranteed) — no delivery
   const [orderType, setOrderType] = useState('pickup');
-  const saved = (() => { try { return JSON.parse(localStorage.getItem('appthru_customer') || '{}'); } catch { return {}; } })();
+  const saved = (() => { try { return { ...JSON.parse(localStorage.getItem('appthru_customer') || '{}'), ...(getCustomer() || {}) }; } catch { return {}; } })();
   const [name, setName] = useState(saved.name || '');
   const [phone, setPhone] = useState(saved.phone || '');
   const [note, setNote] = useState('');
@@ -129,7 +130,7 @@ function Checkout() {
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...customerHeaders() },
         body: JSON.stringify({
           restaurant_id: cart.restaurantId,
           items: cart.items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),

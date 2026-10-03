@@ -4865,3 +4865,66 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 .legal-page p { margin: 0 0 12px; font-size: 0.97rem; }
 .legal-meta { color: #888; font-size: 0.85rem !important; }
 .legal-page a { color: #0e8a4a; }
+
+
+/* =====================================================================
+   Mobile app: sign-in, account, home
+   ===================================================================== */
+.auth-screen {
+  min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+  padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
+  background: #fff;
+}
+.auth-card { width: 100%; max-width: 400px; text-align: center; }
+.auth-logo { width: 84px; height: 84px; border-radius: 20px; margin: 0 auto 14px; display: block; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+.auth-title { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; color: #141414; }
+.auth-sub { color: #777; margin: 0 0 20px; font-size: .95rem; }
+.auth-tabs { display: flex; background: #f2f3f5; border-radius: 12px; padding: 4px; margin-bottom: 16px; }
+.auth-tab { flex: 1; border: 0; background: transparent; padding: 10px; border-radius: 9px; font-weight: 600; color: #666; font-size: .93rem; cursor: pointer; }
+.auth-tab.active { background: #fff; color: #141414; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.auth-form { display: flex; flex-direction: column; gap: 10px; }
+.auth-input {
+  width: 100%; box-sizing: border-box; border: 1.5px solid #e3e5e8; border-radius: 12px; padding: 14px;
+  font-size: 16px; background: #fff; outline: none; transition: border-color .15s;
+}
+.auth-input:focus { border-color: var(--primary, #0e8a4a); }
+.auth-submit {
+  width: 100%; border: 0; border-radius: 12px; padding: 15px; font-size: 1rem; font-weight: 700;
+  background: var(--primary, #0e8a4a); color: #fff; cursor: pointer; margin-top: 4px;
+}
+.auth-submit:disabled { opacity: .6; }
+.auth-error { color: #b3261e; font-size: .88rem; margin: 2px 0 0; text-align: left; }
+.auth-guest { margin-top: 14px; background: none; border: 0; color: #555; font-size: .92rem; font-weight: 600; padding: 10px; cursor: pointer; }
+.auth-foot { margin: 18px 0 6px; font-size: .86rem; color: #888; }
+.auth-linkbtn { background: none; border: 0; color: var(--primary, #0e8a4a); font-weight: 600; font-size: .86rem; padding: 0; cursor: pointer; }
+.auth-legal { font-size: .76rem; color: #aaa; margin: 0; }
+.auth-legal a { color: #888; }
+
+.account-page { max-width: 480px; margin: 0 auto; padding: 24px 20px 48px; display: flex; flex-direction: column; gap: 10px; }
+.account-page h1 { font-size: 1.6rem; margin: 0; letter-spacing: -0.02em; }
+.account-muted { color: #888; margin: 0 0 6px; font-size: .92rem; }
+.account-label { font-size: .8rem; font-weight: 600; color: #666; margin-top: 6px; }
+.account-section { margin-top: 16px; border: 1px solid #eee; border-radius: 14px; overflow: hidden; }
+.account-row { display: flex; justify-content: space-between; padding: 15px 16px; color: #1a1a1a; text-decoration: none; border-bottom: 1px solid #f0f0f0; font-weight: 500; }
+.account-row:last-child { border-bottom: 0; }
+.account-row span { color: #bbb; }
+.account-links { margin-top: 12px; font-size: .9rem; color: #888; }
+.account-signout { margin-top: 18px; border: 1px solid #e3e5e8; background: #fff; border-radius: 12px; padding: 13px; font-weight: 600; font-size: .95rem; color: #1a1a1a; }
+.account-delete { background: none; border: 0; color: #b3261e; font-size: .88rem; padding: 10px; }
+.nav-account { font-size: 1.15rem; }
+
+.app-home { max-width: 640px; margin: 0 auto; padding: 18px 16px 40px; }
+.app-home-greet { color: #888; margin: 0; font-size: .92rem; }
+.app-home-title { font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; margin: 2px 0 16px; }
+.app-loc-list { display: flex; flex-direction: column; gap: 12px; }
+.app-loc-card {
+  display: flex; align-items: center; gap: 14px; padding: 12px; border: 1px solid #eee; border-radius: 16px;
+  background: #fff; text-decoration: none; color: inherit; box-shadow: 0 1px 3px rgba(16,24,40,.05);
+}
+.app-loc-card:active { transform: scale(.99); }
+.app-loc-img { width: 76px; height: 76px; border-radius: 12px; background: #f2f3f5 center/cover no-repeat; flex-shrink: 0; }
+.app-loc-info { flex: 1; min-width: 0; }
+.app-loc-info h3 { margin: 0 0 3px; font-size: 1rem; font-weight: 700; }
+.app-loc-addr { margin: 0 0 4px; color: #777; font-size: .83rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-loc-meta { margin: 0; color: #0e8a4a; font-size: .8rem; font-weight: 600; }
+.app-loc-go { color: #c4c4c4; font-size: 1.6rem; padding-right: 4px; }
