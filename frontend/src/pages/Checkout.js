@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { rememberOrder } from '../utils/myOrders';
-import { customerHeaders, getCustomer } from '../utils/customer';
+import { customerHeaders, getCustomer, getCustomerToken } from '../utils/customer';
 
 // Separate Apple Pay button is off: Apple Pay inside the payment list is the
 // proven path (see Stripe history). Flip to true only after testing on an iPhone.
@@ -67,7 +67,21 @@ function Checkout() {
   // Mount the Payment Element (deferred intent: amount/currency now, intent at submit)
   useEffect(() => {
     if (!stripeReady || !payMountRef.current || amountCents <= 0) return;
+    let cancelled = false;
+    let pe = null;
+    (async () => {
+    // Signed-in customers: load their saved cards (falls back silently to normal checkout)
+    let customerSessionClientSecret;
+    if (getCustomerToken()) {
+      try {
+        const r = await fetch('/api/payments/customer-session', { method: 'POST', headers: { ...customerHeaders() } });
+        const d = r.ok ? await r.json() : {};
+        if (d.enabled && d.customerSessionClientSecret) customerSessionClientSecret = d.customerSessionClientSecret;
+      } catch {}
+    }
+    if (cancelled || !payMountRef.current) return;
     const elements = stripeRef.current.elements({
+      ...(customerSessionClientSecret ? { customerSessionClientSecret } : {}),
       mode: 'payment',
       amount: amountCents,
       currency: currencyRef.current,
@@ -94,7 +108,7 @@ function Checkout() {
         },
       },
     });
-    const pe = elements.create('payment', {
+    pe = elements.create('payment', {
       // Premium: spaced expandable options with radio dots, minimal questions.
       layout: { type: 'accordion', defaultCollapsed: true, radios: true, spacedAccordionItems: true },
       // We already collect name + phone in our own form; never ask for address.
@@ -103,7 +117,8 @@ function Checkout() {
     });
     pe.mount(payMountRef.current);
     elementsRef.current = elements;
-    return () => { pe.destroy(); elementsRef.current = null; };
+    })();
+    return () => { cancelled = true; if (pe) pe.destroy(); elementsRef.current = null; };
   }, [stripeReady]); // amount updates handled separately below
 
   // Apple Pay / Google Pay: dedicated express button (opens the wallet sheet directly)
@@ -344,7 +359,9 @@ function Checkout() {
             </div>
             <div className="v2-tip">
               <span>⚡</span>
-              <span><strong>Tip:</strong> choose <strong>Link</strong> to save your card — next time it's one tap.</span>
+              <span>{getCustomerToken()
+                ? <><strong>Save your card</strong> with the checkbox below — next time it's one tap.</>
+                : <><strong>Tip:</strong> sign in or choose <strong>Link</strong> to save your card for next time.</>}</span>
             </div>
             <div className="card-element-box" ref={payMountRef} />
             <div className="v2-secure">🔒 Payments secured by Stripe · App-Thru never sees your card</div>

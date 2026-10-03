@@ -166,7 +166,19 @@ app.post('/api/payments/create', async (req, res) => {
   };
   const description = ord ? `${ord.restaurant_name} · order ${ord.pickup_code}` : `App-Thru order ${orderId}`;
 
-  const result = await payments.createPaymentIntent(amount, meta, 'card', description);
+  // Signed-in customer? Attach their Stripe customer so cards can be saved/reused.
+  let piOpts = {};
+  if (payments.savedCardsEnabled()) {
+    try {
+      const row = db.prepare('SELECT c.* FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.id = ?').get(orderId);
+      if (row) {
+        const scid = await payments.ensureStripeCustomer(row);
+        if (scid && scid !== row.stripe_customer_id) db.prepare('UPDATE customers SET stripe_customer_id = ? WHERE id = ?').run(scid, row.id);
+        if (scid) piOpts.customer = scid;
+      }
+    } catch (e) { console.warn('[saved-cards] skipped on intent:', e.message); }
+  }
+  const result = await payments.createPaymentIntent(amount, meta, 'card', description, piOpts);
   if (!result.success) return res.status(500).json({ error: result.error });
 
   const paymentId = uuidv4();
@@ -616,6 +628,19 @@ app.post('/api/customers/social', authLimiter, async (req, res) => {
   } catch (e) {
     console.warn('[social-login]', provider, e.message);
     res.status(401).json({ error: 'Sign-in failed — please try again' });
+  }
+});
+
+// Saved cards: a short-lived session that lets checkout show this customer's cards
+app.post('/api/payments/customer-session', auth.customerAuth, async (req, res) => {
+  if (!payments.savedCardsEnabled()) return res.json({ enabled: false });
+  try {
+    const scid = await payments.ensureStripeCustomer(req.customer);
+    if (scid !== req.customer.stripe_customer_id) db.prepare('UPDATE customers SET stripe_customer_id = ? WHERE id = ?').run(scid, req.customer.id);
+    res.json({ enabled: true, customerSessionClientSecret: await payments.createCustomerSession(scid) });
+  } catch (e) {
+    console.warn('[saved-cards] session failed:', e.message);
+    res.json({ enabled: false });
   }
 });
 

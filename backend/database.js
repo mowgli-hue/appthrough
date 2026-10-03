@@ -150,7 +150,7 @@ db.exec(`
 `);
 addCol('customer_id', 'TEXT');
 const customerCols = db.prepare('PRAGMA table_info(customers)').all().map(c => c.name);
-for (const [n, t] of [['google_sub', 'TEXT'], ['apple_sub', 'TEXT'], ['avatar_url', 'TEXT'], ['auth_provider', "TEXT DEFAULT 'email'"]]) {
+for (const [n, t] of [['stripe_customer_id', 'TEXT'], ['google_sub', 'TEXT'], ['apple_sub', 'TEXT'], ['avatar_url', 'TEXT'], ['auth_provider', "TEXT DEFAULT 'email'"]]) {
   if (!customerCols.includes(n)) db.exec(`ALTER TABLE customers ADD COLUMN ${n} ${t}`);
 }
 

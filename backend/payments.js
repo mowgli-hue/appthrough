@@ -21,7 +21,7 @@ function publishableKey() {
   return process.env.STRIPE_PUBLISHABLE_KEY || null;
 }
 
-async function createPaymentIntent(amountDollars, metadata = {}, methodType = 'card', description = '') {
+async function createPaymentIntent(amountDollars, metadata = {}, methodType = 'card', description = '', opts = {}) {
   const amountCents = Math.round(amountDollars * 100);
 
   if (!stripe) {
@@ -43,6 +43,7 @@ async function createPaymentIntent(amountDollars, metadata = {}, methodType = 'c
       capture_method: 'automatic',
     };
     if (description) params.description = description;
+    if (opts.customer) params.customer = opts.customer; // lets signed-in customers save / reuse cards
     if (methodType === 'card_present') {
       params.payment_method_types = ['card_present']; // physical terminals
     } else {
@@ -91,4 +92,39 @@ async function refundPayment(paymentIntentId) {
   }
 }
 
-module.exports = { createPaymentIntent, confirmPayment, refundPayment, isConfigured, publishableKey, CURRENCY };
+// ---- Saved cards (signed-in customers) --------------------------------
+const savedCardsEnabled = () => Boolean(stripe) && process.env.SAVED_CARDS === '1';
+
+async function ensureStripeCustomer(c) {
+  if (!stripe) return null;
+  if (c.stripe_customer_id) return c.stripe_customer_id;
+  const sc = await stripe.customers.create({
+    name: c.name || undefined,
+    email: c.email && !/@users\.appthru\.ca$/.test(c.email) ? c.email : undefined,
+    phone: c.phone ? '+1' + String(c.phone).replace(/\D/g, '').slice(-10) : undefined,
+    metadata: { appthru_customer_id: c.id },
+  });
+  return sc.id;
+}
+
+// Short-lived secret that lets the Payment Element show + save this customer's cards
+async function createCustomerSession(stripeCustomerId) {
+  const cs = await stripe.customerSessions.create({
+    customer: stripeCustomerId,
+    components: {
+      payment_element: {
+        enabled: true,
+        features: {
+          payment_method_redisplay: 'enabled',
+          payment_method_save: 'enabled',
+          payment_method_save_usage: 'on_session',
+          payment_method_remove: 'enabled',
+        },
+      },
+    },
+  });
+  return cs.client_secret;
+}
+
+module.exports = {
+  savedCardsEnabled, ensureStripeCustomer, createCustomerSession, createPaymentIntent, confirmPayment, refundPayment, isConfigured, publishableKey, CURRENCY };
