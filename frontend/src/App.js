@@ -19,6 +19,7 @@ import MerchantLogin from './pages/MerchantLogin';
 import MerchantDashboard from './pages/MerchantDashboard';
 import SetupGuide from './pages/SetupGuide';
 import OrderBoard from './pages/OrderBoard';
+import { Privacy, Support } from './pages/Legal';
 
 // Merchant/staff screens get a clean portal chrome instead of the
 // customer navbar (no search, cart, or 'List Your Restaurant').
@@ -55,6 +56,8 @@ function Shell() {
               <Route path="/login" element={<MerchantLogin />} />
               <Route path="/merchant/:id" element={<MerchantDashboard />} />
               <Route path="/setup/:id" element={<SetupGuide />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/support" element={<Support />} />
             </Routes>
           </main>
           {!isMerchantArea && !isKiosk && (

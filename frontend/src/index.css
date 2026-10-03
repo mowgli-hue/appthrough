@@ -4856,3 +4856,12 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   gap: 12px;
 }
 .no-results .btn-primary { position: static !important; margin: 8px 0 0 !important; }
+
+
+/* ---- legal / support pages ---- */
+.legal-page { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; line-height: 1.65; color: #2a2a2a; }
+.legal-page h1 { font-size: 1.8rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+.legal-page h2 { font-size: 1.1rem; margin: 28px 0 6px; }
+.legal-page p { margin: 0 0 12px; font-size: 0.97rem; }
+.legal-meta { color: #888; font-size: 0.85rem !important; }
+.legal-page a { color: #0e8a4a; }
