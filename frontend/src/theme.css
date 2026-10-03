@@ -228,3 +228,6 @@
 .radio-dot.on { border-color: var(--at-ink) !important; }
 .radio-dot.on::after { background: var(--at-ink) !important; }
 .sheet-stepper .stepper-btn.stepper-add { background: var(--at-ink) !important; color: #fff !important; }
+
+.auth-linkbtn { color: #c4520f !important; }
+.account-delete { color: var(--at-danger) !important; }
