@@ -1,0 +1,37 @@
+{
+	"appId": "ca.appthru.app",
+	"appName": "App-Thru",
+	"webDir": "build",
+	"server": {
+		"url": "https://www.appthru.ca",
+		"allowNavigation": [
+			"www.appthru.ca",
+			"appthru.ca",
+			"*.stripe.com",
+			"js.stripe.com",
+			"*.link.com"
+		],
+		"errorPath": "offline.html"
+	},
+	"android": {
+		"allowMixedContent": false,
+		"backgroundColor": "#ffffff"
+	},
+	"ios": {
+		"contentInset": "automatic",
+		"backgroundColor": "#ffffff"
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 1200,
+			"launchAutoHide": true,
+			"backgroundColor": "#ffffff",
+			"showSpinner": false
+		}
+	},
+	"packageClassList": [
+		"AppPlugin",
+		"SplashScreenPlugin",
+		"StatusBarPlugin"
+	]
+}
