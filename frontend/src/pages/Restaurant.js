@@ -11,6 +11,7 @@ function Restaurant() {
   const [restaurant, setRestaurant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeCat, setActiveCat] = useState('');
+  const [query, setQuery] = useState('');
   const tabsRef = useRef(null);
 
   useEffect(() => {
@@ -31,7 +32,7 @@ function Restaurant() {
     }, { rootMargin: '-80px 0px -65% 0px' });
     sections.forEach(s => obs.observe(s));
     return () => obs.disconnect();
-  }, [restaurant]);
+  }, [restaurant, query]);
 
   // Keep the active tab visible by sliding ONLY the tab strip sideways.
   // (scrollIntoView also scrolls the page on iOS with a sticky bar, which
@@ -69,6 +70,27 @@ function Restaurant() {
   };
   const thisCart = cart.restaurantId === restaurant.id;
 
+  // Menu search: matches item name, description, or category (case/accent-insensitive)
+  const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const q = norm(query.trim());
+  const searching = q.length > 0;
+  const shownMenu = Object.entries(restaurant.menu || {})
+    .map(([category, items]) => [category, searching
+      ? items.filter(it => norm(`${it.name} ${it.description || ''} ${category}`).includes(q))
+      : items])
+    .filter(([, items]) => items.length > 0);
+  const resultCount = shownMenu.reduce((n, [, items]) => n + items.length, 0);
+  const onSearch = (v) => {
+    setQuery(v);
+    // If the search bar is pinned at the top, jump back to the start of the
+    // menu so the (shorter) results aren't scrolled out of view.
+    const bar = document.querySelector('.v2-tabs');
+    const menu = document.querySelector('.v2-menu');
+    if (bar && menu && bar.getBoundingClientRect().top <= 1) {
+      window.scrollTo({ top: Math.max(0, menu.offsetTop - bar.offsetHeight), behavior: 'auto' });
+    }
+  };
+
   return (
     <div className="v2">
       <div className="v2-rest-hero" style={restaurant.image ? { backgroundImage: `url(${restaurant.image})` } : undefined}>
@@ -90,18 +112,43 @@ function Restaurant() {
         </div>
       </div>
 
-      {cats.length > 1 && (
-        <nav className="v2-tabs" aria-label="Menu categories">
+      <nav className="v2-tabs" aria-label="Search and categories">
+        <div className="v2-search-row">
+          <label className="v2-search">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            <input
+              type="search"
+              inputMode="search"
+              enterKeyHint="search"
+              placeholder={`Search ${restaurant.name} menu`}
+              value={query}
+              onChange={e => onSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+              aria-label="Search the menu"
+            />
+            {query && <button type="button" className="v2-search-x" onClick={() => setQuery('')} aria-label="Clear search">×</button>}
+          </label>
+        </div>
+        {cats.length > 1 && !searching && (
           <div className="v2-tabs-inner" ref={tabsRef}>
             {cats.map(c => (
               <button key={c} className={`v2-tab ${activeCat === c ? 'on' : ''}`} onClick={() => goCat(c)}>{c}</button>
             ))}
           </div>
-        </nav>
-      )}
+        )}
+        {searching && (
+          <div className="v2-search-meta">{resultCount ? `${resultCount} item${resultCount === 1 ? '' : 's'} match “${query.trim()}”` : ''}</div>
+        )}
+      </nav>
 
       <div className="v2-menu">
-        {Object.entries(restaurant.menu || {}).map(([category, items]) => (
+        {searching && resultCount === 0 && (
+          <div className="v2-search-empty">
+            <p>No items match “{query.trim()}”.</p>
+            <button className="v2-btn ghost" onClick={() => setQuery('')}>Show full menu</button>
+          </div>
+        )}
+        {shownMenu.map(([category, items]) => (
           <section key={category} className="v2-menu-section" id={`cat-${category}`} data-cat={category}>
             <h2 className="v2-menu-title">{category}</h2>
             <div className="v2-menu-list">
