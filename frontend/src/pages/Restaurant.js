@@ -33,10 +33,17 @@ function Restaurant() {
     return () => obs.disconnect();
   }, [restaurant]);
 
-  // Keep the active tab scrolled into view
+  // Keep the active tab visible by sliding ONLY the tab strip sideways.
+  // (scrollIntoView also scrolls the page on iOS with a sticky bar, which
+  // yanked customers back to the top of the menu while they scrolled.)
   useEffect(() => {
-    const el = tabsRef.current?.querySelector('.v2-tab.on');
-    if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    const strip = tabsRef.current;
+    const el = strip?.querySelector('.v2-tab.on');
+    if (!strip || !el) return;
+    const sr = strip.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const left = strip.scrollLeft + (er.left - sr.left) - (strip.clientWidth - er.width) / 2;
+    try { strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' }); }
+    catch { strip.scrollLeft = Math.max(0, left); }
   }, [activeCat]);
 
   if (loading) return <div className="v2"><div className="loading"><div className="spinner"></div></div></div>;
@@ -55,7 +62,10 @@ function Restaurant() {
   const cats = Object.keys(restaurant.menu || {});
   const goCat = (c) => {
     setActiveCat(c);
-    document.getElementById(`cat-${c}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const sec = document.getElementById(`cat-${c}`);
+    const bar = document.querySelector('.v2-tabs');
+    const offset = (bar ? bar.offsetHeight : 56) + 8;
+    if (sec) window.scrollTo({ top: sec.getBoundingClientRect().top + window.scrollY - offset, behavior: 'smooth' });
   };
   const thisCart = cart.restaurantId === restaurant.id;
 
