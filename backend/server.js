@@ -661,6 +661,8 @@ app.patch('/api/customers/me', auth.customerAuth, (req, res) => {
 // Account deletion (App Store guideline 5.1.1(v)). Order records stay for
 // tax/accounting but are detached from the account.
 app.delete('/api/customers/me', auth.customerAuth, (req, res) => {
+  const row = db.prepare('SELECT stripe_customer_id FROM customers WHERE id = ?').get(req.customer.id);
+  if (row && row.stripe_customer_id) payments.deleteStripeCustomer(row.stripe_customer_id);
   db.prepare('UPDATE orders SET customer_id = NULL WHERE customer_id = ?').run(req.customer.id);
   db.prepare('DELETE FROM customers WHERE id = ?').run(req.customer.id);
   res.json({ ok: true });

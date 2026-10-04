@@ -126,5 +126,12 @@ async function createCustomerSession(stripeCustomerId) {
   return cs.client_secret;
 }
 
+// Account deletion: removing the Stripe Customer also detaches its saved cards.
+async function deleteStripeCustomer(stripeCustomerId) {
+  if (!stripe || !stripeCustomerId) return;
+  try { await stripe.customers.del(stripeCustomerId); }
+  catch (e) { console.error('[stripe] customer delete failed:', e.message); }
+}
+
 module.exports = {
-  savedCardsEnabled, ensureStripeCustomer, createCustomerSession, createPaymentIntent, confirmPayment, refundPayment, isConfigured, publishableKey, CURRENCY };
+  deleteStripeCustomer, savedCardsEnabled, ensureStripeCustomer, createCustomerSession, createPaymentIntent, confirmPayment, refundPayment, isConfigured, publishableKey, CURRENCY };

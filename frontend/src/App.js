@@ -19,7 +19,7 @@ import MerchantLogin from './pages/MerchantLogin';
 import MerchantDashboard from './pages/MerchantDashboard';
 import SetupGuide from './pages/SetupGuide';
 import OrderBoard from './pages/OrderBoard';
-import { Privacy, Support } from './pages/Legal';
+import { Privacy, Support, DeleteAccount } from './pages/Legal';
 import { SignIn, AccountPage } from './pages/Account';
 import AppHome from './pages/AppHome';
 import { isNativeApp, getCustomerToken, isGuest, openInBrowser } from './utils/customer';
@@ -46,7 +46,7 @@ function TabBar({ onCart }) {
 // In the mobile app: start at sign-in, and send restaurant/merchant pages
 // to the phone's browser instead of showing them inside the app.
 const MERCHANT_PATHS = /^\/(register|login|merchant|admin|kitchen|setup|kiosk|board)/;
-const OPEN_PATHS = /^\/(signin|privacy|support)/;
+const OPEN_PATHS = /^\/(signin|privacy|support|delete-account)/;
 function NativeGate() {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
@@ -106,6 +106,7 @@ function Shell() {
               <Route path="/setup/:id" element={<SetupGuide />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/support" element={<Support />} />
+              <Route path="/delete-account" element={<DeleteAccount />} />
             </Routes>
           </main>
           {native && !isAuth && !isMerchantArea && !isKiosk && <TabBar onCart={() => setCartOpen(true)} />}
