@@ -20,6 +20,8 @@ const PORT = process.env.PORT || 3001;
 const APPTHRU_FEE = Math.max(0, parseFloat(process.env.APPTHRU_FEE ?? '0.99') || 0);
 // Sales tax rate (BC food = 5% GST). Override with TAX_RATE env.
 const TAX_RATE = Math.max(0, parseFloat(process.env.TAX_RATE ?? '0.05') || 0);
+// App-Thru fee on staff-entered call-in orders (both tap-at-pickup and pay link)
+const PHONE_ORDER_FEE = Math.max(0, parseFloat(process.env.PHONE_ORDER_FEE ?? '0.49') || 0);
 
 // Sanitize size/portion options: [{name, price}] (max 8), or null
 function cleanOptions(raw) {
@@ -482,8 +484,8 @@ app.post('/api/merchants/:id/phone-orders', auth.authMiddleware, requireRestaura
 
   const subtotal = Math.round(items.reduce((s2, it) => s2 + it.price * it.quantity, 0) * 100) / 100;
   const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
-  const service_fee = 0; // no App-Thru fee on call-in orders
-  const total = Math.round((subtotal + tax) * 100) / 100;
+  const service_fee = PHONE_ORDER_FEE;
+  const total = Math.round((subtotal + tax + service_fee) * 100) / 100;
   const orderId = uuidv4();
   const pickupCode = generatePickupCode(customer_name);
 
@@ -507,7 +509,7 @@ app.post('/api/merchants/:id/phone-orders', auth.authMiddleware, requireRestaura
     if (typeof cid === 'string') db.prepare('UPDATE orders SET clover_order_id = ? WHERE id = ?').run(cid, orderId);
   }).catch(() => {});
 
-  res.status(201).json({ id: orderId, pickup_code: pickupCode, total, items, status: 'preparing', payment_status: 'unpaid', source: 'phone', pay_method: payMethod });
+  res.status(201).json({ id: orderId, pickup_code: pickupCode, subtotal, tax, service_fee, total, items, status: 'preparing', payment_status: 'unpaid', source: 'phone', pay_method: payMethod });
 });
 
 // Staff confirm a phone order was paid (card tapped on the terminal)

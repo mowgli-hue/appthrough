@@ -131,6 +131,7 @@ function PayLink() {
             ))}
           </ul>
           <div className="paylink-row"><span>GST 5%</span><span>${Number(order.tax).toFixed(2)}</span></div>
+          {Number(order.service_fee) > 0 && <div className="paylink-row"><span>App-Thru fee</span><span>${Number(order.service_fee).toFixed(2)}</span></div>}
           <div className="paylink-row paylink-total"><span>Total</span><span>${Number(order.total).toFixed(2)}</span></div>
         </div>
 
