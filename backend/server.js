@@ -592,7 +592,7 @@ app.get('/api/pickup-orders', auth.authMiddleware, async (req, res) => {
       AND o.status NOT IN ('picked_up', 'cancelled', 'awaiting_payment')
       AND o.created_at >= datetime('now', '-12 hours')
       AND o.restaurant_id = ?
-    ORDER BY o.created_at ASC
+    ORDER BY o.created_at DESC  -- newest orders first on the live queue
   `).all(req.merchant.restaurantId);
   orders.forEach(o => { o.items = JSON.parse(o.items); });
   res.json(orders);
