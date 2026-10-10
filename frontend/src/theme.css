@@ -335,3 +335,5 @@
 .po-back { align-self: flex-start; border: 0; background: transparent; font: inherit; font-weight: 700; color: #141414; padding: 4px 0; cursor: pointer; }
 .po-order { max-width: 560px; margin: 0 auto; width: 100%; box-sizing: border-box; }
 .po-flash { bottom: 90px; }
+
+.po-old-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }

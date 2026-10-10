@@ -225,13 +225,23 @@ function KitchenPickup() {
                 ))}
               </ul>
               <div className="kitchen-actions">
-                {order.status === 'preparing' && (
+                {order.status === 'preparing' && minutesSince(order.created_at) <= 45 && (
                   <button
                     className="btn-primary"
                     onClick={() => updateStatus(order.id, 'ready')}
                   >
                     🛎️ Mark Ready &amp; Notify
                   </button>
+                )}
+                {order.status === 'preparing' && minutesSince(order.created_at) > 45 && (
+                  <>
+                    <button className="btn-primary" onClick={(e) => { e.stopPropagation(); updateStatus(order.id, 'picked_up'); }}>
+                      ✓ Done — remove (no text)
+                    </button>
+                    <button className="btn-secondary" onClick={(e) => { e.stopPropagation(); updateStatus(order.id, 'ready'); }}>
+                      Text customer it's ready
+                    </button>
+                  </>
                 )}
                 {order.status === 'ready' && (
                   <button

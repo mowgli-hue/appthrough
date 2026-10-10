@@ -229,8 +229,14 @@ function MerchantDashboard() {
                 </ul>
                 <div className="po-bottom">
                   <span className="po-total">${Number(o.total).toFixed(2)}</span>
-                  {o.status === 'preparing' && (
+                  {o.status === 'preparing' && minutesSince(o.created_at) <= 45 && (
                     <button className="btn-primary" onClick={() => updateStatus(o.id, 'ready')}>✓ Ready — text customer</button>
+                  )}
+                  {o.status === 'preparing' && minutesSince(o.created_at) > 45 && (
+                    <span className="po-old-actions">
+                      <button className="btn-primary" onClick={(e) => { e.stopPropagation(); updateStatus(o.id, 'picked_up'); }}>✓ Done — remove (no text)</button>
+                      <button className="btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); updateStatus(o.id, 'ready'); }}>Text ready</button>
+                    </span>
                   )}
                   {o.status === 'ready' && (
                     <button className="btn-secondary" onClick={() => updateStatus(o.id, 'picked_up')}>Picked up</button>
