@@ -49,7 +49,9 @@ async function notifyOrderPlaced(order) {
   if (!order.customer_phone) return;
   await sendSMS(
     order.customer_phone,
-    `🧾 App-Thru: Hi ${order.customer_name || 'there'}! Your order at ${order.restaurant_name} is confirmed. Pickup code: ${order.pickup_code}. We'll text you when it's ready!`
+    order.cash
+      ? `🧾 App-Thru: Hi ${order.customer_name || 'there'}! Your order at ${order.restaurant_name} is confirmed. Pickup code: ${order.pickup_code}. Please pay $${Number(order.total).toFixed(2)} in cash at pickup. We'll text you when it's ready!`
+      : `🧾 App-Thru: Hi ${order.customer_name || 'there'}! Your order at ${order.restaurant_name} is confirmed. Pickup code: ${order.pickup_code}. We'll text you when it's ready!`
   );
 }
 
@@ -60,7 +62,7 @@ async function notifyPhoneOrderPlaced(order) {
     order.customer_phone,
     order.payLink
       ? `🧾 ${order.restaurant_name}: Hi ${order.customer_name || 'there'}, we got your phone order. Pickup code: ${order.pickup_code}. Pay $${Number(order.total).toFixed(2)} securely here: ${base}/pay/${order.id} (or tap your card when you pick up).`
-      : `🧾 ${order.restaurant_name}: Hi ${order.customer_name || 'there'}, we got your phone order. Pickup code: ${order.pickup_code}. Total $${Number(order.total).toFixed(2)} - pay by tap when you pick up. Track it: ${base}/order/${order.id}`
+      : `🧾 ${order.restaurant_name}: Hi ${order.customer_name || 'there'}, we got your phone order. Pickup code: ${order.pickup_code}. Total $${Number(order.total).toFixed(2)} - pay by ${order.cash ? 'cash' : 'tap'} when you pick up. Track it: ${base}/order/${order.id}`
   );
 }
 

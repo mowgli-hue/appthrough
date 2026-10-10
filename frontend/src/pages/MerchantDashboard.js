@@ -98,9 +98,10 @@ function MerchantDashboard() {
     return () => { clearInterval(t); clearInterval(s); };
   }, [loadStats, loadOrders, loadMenu]);
 
-  const isUnpaid = (o) => o.source === 'phone' && o.payment_status !== 'paid' && o.payment_status !== 'paid_in_store';
-  const markPaid = async (orderId) => {
-    await fetch(`/api/orders/${orderId}/mark-paid`, { method: 'POST', headers: { ...authHeaders() } });
+  const isUnpaid = (o) => o.payment_status === 'unpaid';
+  const payWord = (o) => (o.pay_method === 'cash' ? 'CASH' : 'TAP');
+  const markPaid = async (orderId, method) => {
+    await fetch(`/api/orders/${orderId}/mark-paid`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ method }) });
     loadOrders();
   };
   const onPhoneCreated = (o) => { if (knownIdsRef.current) knownIdsRef.current.add(o.id); loadOrders(); loadStats(); };
@@ -108,8 +109,8 @@ function MerchantDashboard() {
   const updateStatus = async (orderId, status) => {
     const ord = orders.find(o => o.id === orderId);
     if (status === 'picked_up' && ord && isUnpaid(ord)) {
-      if (!window.confirm(`${ord.pickup_code} is NOT PAID ($${Number(ord.total).toFixed(2)}).\n\nOK = customer tapped/paid now, mark paid & picked up.`)) return;
-      await fetch(`/api/orders/${orderId}/mark-paid`, { method: 'POST', headers: { ...authHeaders() } });
+      if (!window.confirm(`${ord.pickup_code} is NOT PAID ($${Number(ord.total).toFixed(2)} ${payWord(ord)}).\n\nOK = customer paid now, mark paid & picked up.`)) return;
+      await fetch(`/api/orders/${orderId}/mark-paid`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ method: ord.pay_method === 'cash' ? 'cash' : 'tap' }) });
     }
     acknowledge(orderId);
     await fetch(`/api/orders/${orderId}/status`, {
@@ -218,18 +219,18 @@ function MerchantDashboard() {
               >
                 {newIds.has(o.id) && <div className="kitchen-new-badge">NEW ORDER — tap to stop ringing</div>}
                 <div className="po-top">
-                  <span className="po-code">{o.pickup_code}{o.order_type === 'dinein' && <span className="dinein-badge">DINE-IN</span>}{o.source === 'phone' && <span className="phone-badge">📞 PHONE</span>}</span>
+                  <span className="po-code">{o.pickup_code}{o.order_type === 'dinein' && <span className="dinein-badge">DINE-IN</span>}{o.source === 'phone' && <span className="phone-badge">📞 PHONE</span>}{o.pay_method === 'cash' && <span className="cash-badge">💵 CASH</span>}</span>
                   <span className={`po-time ${o.status === 'preparing' && minutesSince(o.created_at) > 45 ? 'kitchen-time-late' : ''}`}>{timeAgo(o.created_at)}</span>
                 </div>
                 <div className="po-customer">{o.customer_name || 'Guest'} · {o.customer_phone}</div>
                 {o.note && <div className="order-note">📝 {o.note}</div>}
                 {isUnpaid(o) && (
                   <div className="unpaid-bar" onClick={e => e.stopPropagation()}>
-                    <span>💳 NOT PAID · ${Number(o.total).toFixed(2)} · take tap at pickup</span>
-                    <button onClick={() => markPaid(o.id)}>Mark paid</button>
+                    <span>{o.pay_method === 'cash' ? '💵' : '💳'} NOT PAID · ${Number(o.total).toFixed(2)} · collect {payWord(o)} at pickup</span>
+                    <button onClick={() => markPaid(o.id, o.pay_method === 'cash' ? 'cash' : 'tap')}>Mark paid</button>
                   </div>
                 )}
-                {o.source === 'phone' && !isUnpaid(o) && <div className="paid-bar">✓ PAID</div>}
+                {(o.source === 'phone' || o.pay_method === 'cash') && !isUnpaid(o) && <div className="paid-bar">✓ PAID{o.payment_status === 'paid_in_store' ? ` (${payWord(o)})` : ''}</div>}
                 <ul className="po-items">
                   {o.items.map((i, idx) => <li key={idx}>{i.quantity}× {i.name}</li>)}
                 </ul>

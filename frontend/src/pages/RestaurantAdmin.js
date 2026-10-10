@@ -14,6 +14,7 @@ function RestaurantAdmin() {
     pickup_instructions: '',
     agent_voice: 'friendly',
     drive_thru_enabled: true,
+    accept_cash: true,
     notification_phone: '',
     notification_email: '',
     clover_mid: '',
@@ -36,6 +37,7 @@ function RestaurantAdmin() {
           pickup_instructions: data.pickup_instructions || '',
           agent_voice: data.agent_voice || 'friendly',
           drive_thru_enabled: data.drive_thru_enabled !== 0,
+          accept_cash: data.accept_cash !== 0,
           notification_phone: data.notification_phone || '',
           notification_email: data.notification_email || '',
           clover_mid: data.clover_mid || '',
@@ -99,6 +101,20 @@ function RestaurantAdmin() {
                 <span className="admin-toggle-knob" />
               </button>
               <span>{form.drive_thru_enabled ? 'Enabled' : 'Disabled'}</span>
+            </div>
+          </label>
+
+          <label className="admin-label">
+            Cash at pickup
+            <small>Let customers choose "Cash at pickup" in the app. Staff mark the order paid when they collect.</small>
+            <div className="admin-toggle-row">
+              <button
+                className={`admin-toggle ${form.accept_cash ? 'on' : ''}`}
+                onClick={() => update('accept_cash', !form.accept_cash)}
+              >
+                <span className="admin-toggle-knob" />
+              </button>
+              <span>{form.accept_cash ? 'Allowed' : 'Card only'}</span>
             </div>
           </label>
 

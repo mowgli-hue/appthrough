@@ -83,9 +83,10 @@ async function pushOrder(order) {
     return false;
   }
   try {
-    const title = `${order.unpaid ? 'PHONE ' : 'App-Thru '}${order.pickup_code}${order.customer_name ? ' - ' + order.customer_name : ''}${order.unpaid ? ' - PAY AT PICKUP' : ''}`;
+    const title = `${order.unpaid && order.pay_method !== 'cash' ? 'PHONE ' : 'App-Thru '}${order.pickup_code}${order.customer_name ? ' - ' + order.customer_name : ''}${order.unpaid ? (order.pay_method === 'cash' ? ' - CASH AT PICKUP' : ' - PAY AT PICKUP') : ''}`;
     const unpaid = Boolean(order.unpaid);
-    const noteParts = [title, unpaid ? 'PHONE ORDER - NOT PAID - take tap payment at pickup' : 'PAID ONLINE (Stripe)'];
+    const how = order.pay_method === 'cash' ? 'CASH' : 'TAP';
+    const noteParts = [title, unpaid ? `NOT PAID - collect ${how} at pickup` : 'PAID ONLINE (Stripe)'];
     if (order.note) noteParts.push('Note: ' + order.note);
     const cloverOrder = await cv(creds, 'POST', '/orders', {
       state: 'open',

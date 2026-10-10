@@ -160,5 +160,8 @@ addCol('payment_status', "TEXT DEFAULT 'pending'");
 // 'app' (customer ordered in App-Thru) or 'phone' (staff entered a call-in order)
 addCol('source', "TEXT DEFAULT 'app'");
 addCol('clover_order_id', 'TEXT');
+addCol('pay_method', 'TEXT'); // card | link | cash | tap (how the customer pays / paid)
+const rcols = db.prepare('PRAGMA table_info(restaurants)').all().map(c => c.name);
+if (!rcols.includes('accept_cash')) db.exec('ALTER TABLE restaurants ADD COLUMN accept_cash INTEGER DEFAULT 1');
 
 module.exports = db;

@@ -167,7 +167,12 @@ function OrderConfirmation() {
           </div>
         )}
 
-        {order.source === 'phone' && st !== 'cancelled' && order.payment_status !== 'paid' && order.payment_status !== 'paid_in_store' && (
+        {order.pay_method === 'cash' && order.payment_status === 'unpaid' && st !== 'cancelled' && (
+          <div className="v2-card paylink-due">
+            <div><strong>💵 ${Number(order.total).toFixed(2)} cash at pickup</strong><span>Pay at the counter when you collect your order.</span></div>
+          </div>
+        )}
+        {order.source === 'phone' && order.pay_method !== 'cash' && st !== 'cancelled' && order.payment_status !== 'paid' && order.payment_status !== 'paid_in_store' && (
           <div className="v2-card paylink-due">
             <div><strong>${Number(order.total).toFixed(2)} due</strong><span>Pay now, or tap your card when you pick up.</span></div>
             <Link className="v2-btn" to={`/pay/${order.id}`}>Pay now</Link>

@@ -116,7 +116,7 @@ export default function PhoneOrderSheet({ restaurantId, onClose, onCreated }) {
           <h2>Phone order {done.pickup_code} added</h2>
           <p>Total <strong>${Number(done.total).toFixed(2)}</strong> · {done.pay_method === 'link'
             ? 'payment link texted to the customer'
-            : 'customer pays by tap at pickup'}.</p>
+            : done.pay_method === 'cash' ? 'customer pays cash at pickup' : 'customer pays by tap at pickup'}.</p>
           <p className="po-muted">It's in the queue and on Clover. The customer got a text with their pickup code.</p>
           <button className="po-primary" onClick={onClose}>Done</button>
         </div>
@@ -187,8 +187,9 @@ export default function PhoneOrderSheet({ restaurantId, onClose, onCreated }) {
                   <button type="button" className={orderType === 'dinein' ? 'on' : ''} onClick={() => setOrderType('dinein')}>Dine-in</button>
                 </div>
                 <div className="po-paylabel">How will they pay?</div>
-                <div className="po-seg">
+                <div className="po-seg po-seg-3">
                   <button type="button" className={payMethod === 'pickup' ? 'on' : ''} onClick={() => setPayMethod('pickup')}>💳 Tap at pickup</button>
+                  <button type="button" className={payMethod === 'cash' ? 'on' : ''} onClick={() => setPayMethod('cash')}>💵 Cash at pickup</button>
                   <button type="button" className={payMethod === 'link' ? 'on' : ''} onClick={() => setPayMethod('link')}>📱 Text pay link</button>
                 </div>
               </div>

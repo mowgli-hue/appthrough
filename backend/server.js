@@ -412,20 +412,27 @@ app.post('/api/orders', orderLimiter, (req, res) => {
 
   const orderId = uuidv4();
   const pickupCode = type !== 'delivery' ? generatePickupCode(customer_name) : null;
+  // Cash at pickup: goes straight to the kitchen, marked unpaid until staff collect
+  const payCash = req.body.pay_method === 'cash';
+  if (payCash && restaurant.accept_cash === 0) {
+    return res.status(400).json({ error: 'This restaurant does not take cash orders online' });
+  }
   // Card-paid orders stay hidden from the kitchen until payment succeeds
-  const payFirst = Boolean(req.body.pay_first);
+  const payFirst = !payCash && Boolean(req.body.pay_first);
   const initialStatus = payFirst ? 'awaiting_payment' : (type !== 'delivery' ? 'preparing' : 'confirmed');
 
   db.prepare(`
     INSERT INTO orders (
       id, restaurant_id, items, subtotal, delivery_fee, tax, service_fee, total,
-      delivery_address, order_type, pickup_code, customer_name, customer_phone, status, note, customer_id
+      delivery_address, order_type, pickup_code, customer_name, customer_phone, status, note, customer_id,
+      payment_status, pay_method
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     orderId, restaurant_id, JSON.stringify(items), subtotal, delivery_fee, tax, service_fee, total,
     delivery_address || '', type, pickupCode, customer_name || '', customer_phone || '',
     initialStatus, note, auth.optionalCustomerId(req),
+    payCash ? 'unpaid' : 'pending', payCash ? 'cash' : (payFirst ? 'card' : null),
   );
 
   // Notifications go out now for pay-at-pickup orders; card orders notify
@@ -437,6 +444,7 @@ app.post('/api/orders', orderLimiter, (req, res) => {
         customer_phone,
         restaurant_name: restaurant.name,
         pickup_code: pickupCode,
+        cash: payCash, total,
       }).catch(() => {});
     }
     sms.notifyRestaurantNewOrder(
@@ -451,6 +459,9 @@ app.post('/api/orders', orderLimiter, (req, res) => {
     clover.pushOrder({
       pickup_code: pickupCode, items, subtotal, tax, service_fee, total,
       customer_name, note, restaurant_name: restaurant.name, restaurant_id: restaurant.id,
+      unpaid: payCash, pay_method: payCash ? 'cash' : null,
+    }).then(cid => {
+      if (typeof cid === 'string') db.prepare('UPDATE orders SET clover_order_id = ? WHERE id = ?').run(cid, orderId);
     }).catch(() => {});
   }
 
@@ -481,7 +492,7 @@ app.post('/api/merchants/:id/phone-orders', auth.authMiddleware, requireRestaura
   const phoneDigits = String(req.body.customer_phone || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
   const note = String(req.body.note || '').trim().slice(0, 300);
   const type = req.body.order_type === 'dinein' ? 'dinein' : 'pickup';
-  const payMethod = req.body.pay_method === 'link' ? 'link' : 'pickup';
+  const payMethod = ['link', 'cash'].includes(req.body.pay_method) ? req.body.pay_method : 'pickup';
   if (!customer_name) return res.status(400).json({ error: "Enter the customer's name" });
   if (phoneDigits.length !== 10) return res.status(400).json({ error: 'Enter a 10-digit phone number' });
 
@@ -520,14 +531,15 @@ app.post('/api/merchants/:id/phone-orders', auth.authMiddleware, requireRestaura
     ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, '', ?, ?, ?, ?, 'preparing', ?, 'unpaid', 'phone')
   `).run(orderId, restaurant.id, JSON.stringify(items), subtotal, tax, service_fee, total,
     type, pickupCode, customer_name, phoneDigits, note);
+  db.prepare('UPDATE orders SET pay_method = ? WHERE id = ?').run(payMethod === 'pickup' ? 'tap' : payMethod, orderId);
 
   sms.notifyPhoneOrderPlaced({
     id: orderId, customer_name, customer_phone: phoneDigits,
-    restaurant_name: restaurant.name, pickup_code: pickupCode, total, payLink: payMethod === 'link',
+    restaurant_name: restaurant.name, pickup_code: pickupCode, total, payLink: payMethod === 'link', cash: payMethod === 'cash',
   }).catch(() => {});
   clover.pushOrder({
     pickup_code: pickupCode, items, subtotal, tax, service_fee, total,
-    customer_name, note, restaurant_name: restaurant.name, restaurant_id: restaurant.id, unpaid: true,
+    customer_name, note, restaurant_name: restaurant.name, restaurant_id: restaurant.id, unpaid: true, pay_method: payMethod,
   }).then(cid => {
     if (typeof cid === 'string') db.prepare('UPDATE orders SET clover_order_id = ? WHERE id = ?').run(cid, orderId);
   }).catch(() => {});
@@ -542,8 +554,9 @@ app.post('/api/orders/:id/mark-paid', auth.authMiddleware, (req, res) => {
   if (order.restaurant_id !== req.merchant.restaurantId) {
     return res.status(403).json({ error: 'You do not have access to this order' });
   }
-  db.prepare("UPDATE orders SET payment_status = 'paid_in_store' WHERE id = ?").run(order.id);
-  res.json({ id: order.id, payment_status: 'paid_in_store' });
+  const how = ['cash', 'tap'].includes(req.body && req.body.method) ? req.body.method : null;
+  db.prepare("UPDATE orders SET payment_status = 'paid_in_store', pay_method = COALESCE(?, pay_method) WHERE id = ?").run(how, order.id);
+  res.json({ id: order.id, payment_status: 'paid_in_store', pay_method: how || order.pay_method });
 });
 
 // Update order status (e.g. staff marking as ready / picked up)
@@ -962,6 +975,7 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   if (req.body.clover_token !== undefined && String(req.body.clover_token).trim() !== '••••••') { fields.push('clover_token = ?'); values.push(String(req.body.clover_token).trim().slice(0, 200)); }
   if (req.body.name !== undefined && String(req.body.name).trim()) { fields.push('name = ?'); values.push(String(req.body.name).trim().slice(0, 80)); }
   if (req.body.address !== undefined) { fields.push('address = ?'); values.push(String(req.body.address).slice(0, 160)); }
+  if (req.body.accept_cash !== undefined) { fields.push('accept_cash = ?'); values.push(req.body.accept_cash ? 1 : 0); }
 
   if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
 
@@ -1207,7 +1221,7 @@ app.get('/api/merchants/:id/orders', auth.authMiddleware, requireRestaurantOwner
   const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 200));
   const orders = db.prepare(`
     SELECT id, pickup_code, customer_name, items, subtotal, tax, service_fee, total,
-           status, payment_status, order_type, note, source, created_at, ready_at, picked_up_at
+           status, payment_status, order_type, note, source, pay_method, created_at, ready_at, picked_up_at
     FROM orders
     WHERE restaurant_id = ? AND status != 'awaiting_payment'
     ORDER BY created_at DESC

@@ -23,7 +23,8 @@ function Checkout() {
 
   // --- Stripe Payment Element: cards + Apple Pay + Google Pay + Link ---
   const [stripeReady, setStripeReady] = useState(false);
-  const [payMethod, setPayMethod] = useState('pickup'); // becomes 'card' when Stripe loads
+  const [payMethod, setPayMethod] = useState('pickup'); // becomes 'card' when Stripe loads; 'cash' = pay cash at pickup
+  const [acceptCash, setAcceptCash] = useState(true);
   const stripeRef = useRef(null);
   const elementsRef = useRef(null);
   const currencyRef = useRef('cad');
@@ -38,6 +39,12 @@ function Checkout() {
   const APPTHRU_FEE = 0.99;
   const effectiveTotal = Math.round((subtotal + effectiveDeliveryFee + tax + APPTHRU_FEE) * 100) / 100;
   const amountCents = Math.round(effectiveTotal * 100);
+
+  useEffect(() => {
+    if (!cart.restaurantId) return;
+    fetch(`/api/restaurants/${cart.restaurantId}`).then(r => (r.ok ? r.json() : null))
+      .then(r => { if (r) setAcceptCash(r.accept_cash !== 0); }).catch(() => {});
+  }, [cart.restaurantId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +218,7 @@ function Checkout() {
         customer_phone: f.phone,
         note: f.note,
         pay_first: paying,
+        pay_method: paying ? 'card' : (f.payMethod === 'cash' ? 'cash' : undefined),
       }),
     });
     if (!res.ok) {
@@ -268,7 +276,7 @@ function Checkout() {
 
     setPlacing(true);
     try {
-      await createOrderAndPay(payingByCard ? elementsRef.current : null, { name, phone, note, orderType, cart });
+      await createOrderAndPay(payingByCard ? elementsRef.current : null, { name, phone, note, orderType, cart, payMethod });
     } catch (e) {
       setError(e.message || 'Failed to place order. Please try again.');
       setPlacing(false);
@@ -277,7 +285,7 @@ function Checkout() {
 
   const payLabel = placing
     ? 'Placing order…'
-    : `${stripeReady && payMethod === 'card' ? 'Pay' : 'Place order'} · $${effectiveTotal.toFixed(2)}`;
+    : `${stripeReady && payMethod === 'card' ? 'Pay' : (payMethod === 'cash' ? 'Place order · pay cash at pickup' : 'Place order')} · $${effectiveTotal.toFixed(2)}`;
 
   return (
     <div className="v2">
@@ -353,6 +361,22 @@ function Checkout() {
         {stripeReady && (
           <section className="v2-card">
             <h2 className="v2-h"><span className="v2-step">4</span> Payment</h2>
+            {acceptCash && (
+              <div className="v2-seg v2-payseg" role="radiogroup" aria-label="Payment method">
+                <button type="button" role="radio" aria-checked={payMethod === 'card'} className={payMethod === 'card' ? 'on' : ''} onClick={() => setPayMethod('card')}>
+                  <span className="t">💳 Pay now</span>
+                  <span className="s">Card, Apple Pay, Link</span>
+                </button>
+                <button type="button" role="radio" aria-checked={payMethod === 'cash'} className={payMethod === 'cash' ? 'on' : ''} onClick={() => setPayMethod('cash')}>
+                  <span className="t">💵 Cash at pickup</span>
+                  <span className="s">Pay at the counter</span>
+                </button>
+              </div>
+            )}
+            {payMethod === 'cash' && (
+              <p className="v2-cashnote">Have <strong>${effectiveTotal.toFixed(2)}</strong> ready at pickup. The kitchen starts your order right away.</p>
+            )}
+            <div style={{ display: payMethod === 'cash' ? 'none' : undefined }}>
             <div className={`express-pay ${expressReady ? 'show' : ''}`}>
               <div ref={expressMountRef} />
               {expressReady && <div className="pay-divider"><span>or pay with card</span></div>}
@@ -365,6 +389,7 @@ function Checkout() {
             </div>
             <div className="card-element-box" ref={payMountRef} />
             <div className="v2-secure">🔒 Payments secured by Stripe · App-Thru never sees your card</div>
+            </div>
           </section>
         )}
 
