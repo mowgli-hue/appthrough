@@ -8,6 +8,7 @@ import Restaurant from './pages/Restaurant';
 import Search from './pages/Search';
 import Checkout from './pages/Checkout';
 import OrderConfirmation from './pages/OrderConfirmation';
+import PayLink from './pages/PayLink';
 import Orders from './pages/Orders';
 import KitchenPickup from './pages/KitchenPickup';
 import VoiceOrder from './pages/VoiceOrder';
@@ -46,7 +47,7 @@ function TabBar({ onCart }) {
 // In the mobile app: start at sign-in, and send restaurant/merchant pages
 // to the phone's browser instead of showing them inside the app.
 const MERCHANT_PATHS = /^\/(register|login|merchant|admin|kitchen|setup|kiosk|board)/;
-const OPEN_PATHS = /^\/(signin|privacy|support|delete-account)/;
+const OPEN_PATHS = /^\/(signin|privacy|support|delete-account|pay\/|order\/)/;
 function NativeGate() {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
@@ -93,6 +94,7 @@ function Shell() {
               <Route path="/search" element={<Search />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/order/:id" element={<OrderConfirmation />} />
+              <Route path="/pay/:id" element={<PayLink />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/kitchen" element={<KitchenPickup />} />
               <Route path="/voice" element={<VoiceOrder />} />

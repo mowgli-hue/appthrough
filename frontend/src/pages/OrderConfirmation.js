@@ -167,6 +167,13 @@ function OrderConfirmation() {
           </div>
         )}
 
+        {order.source === 'phone' && st !== 'cancelled' && order.payment_status !== 'paid' && order.payment_status !== 'paid_in_store' && (
+          <div className="v2-card paylink-due">
+            <div><strong>${Number(order.total).toFixed(2)} due</strong><span>Pay now, or tap your card when you pick up.</span></div>
+            <Link className="v2-btn" to={`/pay/${order.id}`}>Pay now</Link>
+          </div>
+        )}
+
         {isPickup && st !== 'cancelled' && (
           <div className="v2-card">
             <div className="v2-steps">

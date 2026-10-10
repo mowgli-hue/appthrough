@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { authHeaders } from '../utils/auth';
 import { playNewOrderChime, autoUnlockOnFirstTap, startAlertLoop, stopAlertLoop } from '../utils/alertSound';
 import { timeAgo, minutesSince } from '../utils/time';
+import PhoneOrderSheet from '../components/PhoneOrderSheet';
 
 
 function MerchantDashboard() {
@@ -17,6 +18,7 @@ function MerchantDashboard() {
   const [unauthorized, setUnauthorized] = useState(false);
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem('appthru_sound') !== 'off');
   const [newIds, setNewIds] = useState(() => new Set());
+  const [phoneOpen, setPhoneOpen] = useState(false);
   const knownIdsRef = useRef(null);
   const soundOnRef = useRef(false);
   useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
@@ -90,7 +92,19 @@ function MerchantDashboard() {
     return () => { clearInterval(t); clearInterval(s); };
   }, [loadStats, loadOrders, loadMenu]);
 
+  const isUnpaid = (o) => o.source === 'phone' && o.payment_status !== 'paid' && o.payment_status !== 'paid_in_store';
+  const markPaid = async (orderId) => {
+    await fetch(`/api/orders/${orderId}/mark-paid`, { method: 'POST', headers: { ...authHeaders() } });
+    loadOrders();
+  };
+  const onPhoneCreated = (o) => { if (knownIdsRef.current) knownIdsRef.current.add(o.id); loadOrders(); loadStats(); };
+
   const updateStatus = async (orderId, status) => {
+    const ord = orders.find(o => o.id === orderId);
+    if (status === 'picked_up' && ord && isUnpaid(ord)) {
+      if (!window.confirm(`${ord.pickup_code} is NOT PAID ($${Number(ord.total).toFixed(2)}).\n\nOK = customer tapped/paid now, mark paid & picked up.`)) return;
+      await fetch(`/api/orders/${orderId}/mark-paid`, { method: 'POST', headers: { ...authHeaders() } });
+    }
     acknowledge(orderId);
     await fetch(`/api/orders/${orderId}/status`, {
       method: 'PATCH',
@@ -143,9 +157,12 @@ function MerchantDashboard() {
           }}>
             {soundOn ? '🔔 Sound on' : '🔕 Enable sound'}
           </button>
+          <button className="po-open-btn" onClick={() => setPhoneOpen(true)}>📞 + Phone order</button>
           <Link to={`/admin/${id}`} className="btn-secondary btn-sm">⚙️ Settings</Link>
         </div>
       </div>
+
+      {phoneOpen && <PhoneOrderSheet restaurantId={id} onClose={() => setPhoneOpen(false)} onCreated={onPhoneCreated} />}
 
       {/* Today at a glance */}
       <div className="portal-kpis">
@@ -195,11 +212,18 @@ function MerchantDashboard() {
               >
                 {newIds.has(o.id) && <div className="kitchen-new-badge">NEW ORDER — tap to stop ringing</div>}
                 <div className="po-top">
-                  <span className="po-code">{o.pickup_code}</span>
+                  <span className="po-code">{o.pickup_code}{o.order_type === 'dinein' && <span className="dinein-badge">DINE-IN</span>}{o.source === 'phone' && <span className="phone-badge">📞 PHONE</span>}</span>
                   <span className={`po-time ${o.status === 'preparing' && minutesSince(o.created_at) > 45 ? 'kitchen-time-late' : ''}`}>{timeAgo(o.created_at)}</span>
                 </div>
                 <div className="po-customer">{o.customer_name || 'Guest'} · {o.customer_phone}</div>
                 {o.note && <div className="order-note">📝 {o.note}</div>}
+                {isUnpaid(o) && (
+                  <div className="unpaid-bar" onClick={e => e.stopPropagation()}>
+                    <span>💳 NOT PAID · ${Number(o.total).toFixed(2)} · take tap at pickup</span>
+                    <button onClick={() => markPaid(o.id)}>Mark paid</button>
+                  </div>
+                )}
+                {o.source === 'phone' && !isUnpaid(o) && <div className="paid-bar">✓ PAID</div>}
                 <ul className="po-items">
                   {o.items.map((i, idx) => <li key={idx}>{i.quantity}× {i.name}</li>)}
                 </ul>
@@ -233,6 +257,7 @@ function MerchantDashboard() {
                 <span className="history-code">{o.pickup_code}</span>
                 <span className="history-name">{o.customer_name || '—'}</span>
                 {o.order_type === 'dinein' && <span className="dinein-badge">DINE-IN</span>}
+                {o.source === 'phone' && <span className="phone-badge">📞 PHONE</span>}
                 <span className={`history-status hs-${o.status}`}>{o.status.replace('_',' ')}</span>
                 <span className="history-total">${Number(o.total).toFixed(2)}</span>
               </div>

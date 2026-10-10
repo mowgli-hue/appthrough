@@ -155,7 +155,7 @@ app.post('/api/payments/create', async (req, res) => {
     FROM orders o JOIN restaurants r ON o.restaurant_id = r.id WHERE o.id = ?
   `).get(orderId);
   if (!ord) return res.status(404).json({ error: 'Order not found' });
-  if (ord.payment_status === 'paid') return res.status(409).json({ error: 'Order is already paid' });
+  if (ord.payment_status === 'paid' || ord.payment_status === 'paid_in_store') return res.status(409).json({ error: 'Order is already paid' });
   const amount = ord.total;
 
   const meta = {
@@ -205,6 +205,11 @@ app.post('/api/payments/confirm', async (req, res) => {
         FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
         WHERE o.id = ?
       `).get(payment.order_id);
+      // Phone order paid by text link: settle the open Clover ticket
+      if (ord && ord.source === 'phone' && ord.clover_order_id) {
+        const rest = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(ord.restaurant_id);
+        clover.markOrderPaid(rest, ord.clover_order_id, ord.total, ord.pickup_code).catch(() => {});
+      }
       if (ord && ord.status === 'awaiting_payment') {
         db.prepare("UPDATE orders SET status = 'preparing' WHERE id = ?").run(ord.id);
         if (ord.customer_phone) {
@@ -440,6 +445,80 @@ app.post('/api/orders', orderLimiter, (req, res) => {
     customer_phone: customer_phone || '',
     estimated_delivery: restaurant.delivery_time,
   });
+});
+
+// ---- Phone (call-in) orders: staff enter the order, customer pays by tap at pickup ----
+app.post('/api/merchants/:id/phone-orders', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {
+  const restaurant = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
+
+  const customer_name = String(req.body.customer_name || '').trim().slice(0, 60);
+  const phoneDigits = String(req.body.customer_phone || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+  const note = String(req.body.note || '').trim().slice(0, 300);
+  const type = req.body.order_type === 'dinein' ? 'dinein' : 'pickup';
+  const payMethod = req.body.pay_method === 'link' ? 'link' : 'pickup';
+  if (!customer_name) return res.status(400).json({ error: "Enter the customer's name" });
+  if (phoneDigits.length !== 10) return res.status(400).json({ error: 'Enter a 10-digit phone number' });
+
+  const reqItems = Array.isArray(req.body.items) ? req.body.items.slice(0, 60) : [];
+  if (!reqItems.length) return res.status(400).json({ error: 'Add at least one item' });
+
+  // Prices always come from the menu, never from the request
+  const items = [];
+  for (const ri of reqItems) {
+    const mi = db.prepare('SELECT * FROM menu_items WHERE id = ? AND restaurant_id = ?').get(ri.menu_item_id, restaurant.id);
+    if (!mi) return res.status(400).json({ error: 'An item is no longer on the menu' });
+    let price = Number(mi.price), name = mi.name;
+    if (ri.option) {
+      let opts = [];
+      try { opts = JSON.parse(mi.options || '[]'); } catch {}
+      const opt = Array.isArray(opts) ? opts.find(o => o && o.name === ri.option) : null;
+      if (!opt) return res.status(400).json({ error: `Pick a size for ${mi.name}` });
+      price = Number(opt.price); name = `${mi.name} (${opt.name})`;
+    }
+    const quantity = Math.min(50, Math.max(1, parseInt(ri.quantity, 10) || 1));
+    items.push({ id: ri.option ? `${mi.id}::${ri.option}` : mi.id, name, price, quantity, category: mi.category || '' });
+  }
+
+  const subtotal = Math.round(items.reduce((s2, it) => s2 + it.price * it.quantity, 0) * 100) / 100;
+  const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
+  const service_fee = 0; // no App-Thru fee on call-in orders
+  const total = Math.round((subtotal + tax) * 100) / 100;
+  const orderId = uuidv4();
+  const pickupCode = generatePickupCode(customer_name);
+
+  db.prepare(`
+    INSERT INTO orders (
+      id, restaurant_id, items, subtotal, delivery_fee, tax, service_fee, total,
+      delivery_address, order_type, pickup_code, customer_name, customer_phone, status, note,
+      payment_status, source
+    ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, '', ?, ?, ?, ?, 'preparing', ?, 'unpaid', 'phone')
+  `).run(orderId, restaurant.id, JSON.stringify(items), subtotal, tax, service_fee, total,
+    type, pickupCode, customer_name, phoneDigits, note);
+
+  sms.notifyPhoneOrderPlaced({
+    id: orderId, customer_name, customer_phone: phoneDigits,
+    restaurant_name: restaurant.name, pickup_code: pickupCode, total, payLink: payMethod === 'link',
+  }).catch(() => {});
+  clover.pushOrder({
+    pickup_code: pickupCode, items, subtotal, tax, service_fee, total,
+    customer_name, note, restaurant_name: restaurant.name, restaurant_id: restaurant.id, unpaid: true,
+  }).then(cid => {
+    if (typeof cid === 'string') db.prepare('UPDATE orders SET clover_order_id = ? WHERE id = ?').run(cid, orderId);
+  }).catch(() => {});
+
+  res.status(201).json({ id: orderId, pickup_code: pickupCode, total, items, status: 'preparing', payment_status: 'unpaid', source: 'phone', pay_method: payMethod });
+});
+
+// Staff confirm a phone order was paid (card tapped on the terminal)
+app.post('/api/orders/:id/mark-paid', auth.authMiddleware, (req, res) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.restaurant_id !== req.merchant.restaurantId) {
+    return res.status(403).json({ error: 'You do not have access to this order' });
+  }
+  db.prepare("UPDATE orders SET payment_status = 'paid_in_store' WHERE id = ?").run(order.id);
+  res.json({ id: order.id, payment_status: 'paid_in_store' });
 });
 
 // Update order status (e.g. staff marking as ready / picked up)
@@ -1101,7 +1180,7 @@ app.get('/api/merchants/:id/orders', auth.authMiddleware, requireRestaurantOwner
   const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 200));
   const orders = db.prepare(`
     SELECT id, pickup_code, customer_name, items, subtotal, tax, service_fee, total,
-           status, payment_status, order_type, note, created_at, ready_at, picked_up_at
+           status, payment_status, order_type, note, source, created_at, ready_at, picked_up_at
     FROM orders
     WHERE restaurant_id = ? AND status != 'awaiting_payment'
     ORDER BY created_at DESC

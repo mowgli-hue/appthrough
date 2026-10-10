@@ -83,8 +83,9 @@ async function pushOrder(order) {
     return false;
   }
   try {
-    const title = `App-Thru ${order.pickup_code}${order.customer_name ? ' - ' + order.customer_name : ''}`;
-    const noteParts = [title, 'PAID ONLINE (Stripe)'];
+    const title = `${order.unpaid ? 'PHONE ' : 'App-Thru '}${order.pickup_code}${order.customer_name ? ' - ' + order.customer_name : ''}${order.unpaid ? ' - PAY AT PICKUP' : ''}`;
+    const unpaid = Boolean(order.unpaid);
+    const noteParts = [title, unpaid ? 'PHONE ORDER - NOT PAID - take tap payment at pickup' : 'PAID ONLINE (Stripe)'];
     if (order.note) noteParts.push('Note: ' + order.note);
     const cloverOrder = await cv(creds, 'POST', '/orders', {
       state: 'open',
@@ -106,8 +107,9 @@ async function pushOrder(order) {
     if (order.service_fee > 0) lineItems.push({ name: 'App-Thru fee', price: cents(order.service_fee), taxRates: [] });
     await cv(creds, 'POST', `/orders/${cloverOrder.id}/bulk_line_items`, { items: lineItems });
 
-    // Record payment as external tender so Clover shows it paid
-    const tenderId = await externalTender(creds);
+    // Record payment as external tender so Clover shows it paid.
+    // Phone orders stay OPEN/unpaid so staff take the card tap on Clover.
+    const tenderId = unpaid ? null : await externalTender(creds);
     if (tenderId) {
       await cv(creds, 'POST', `/orders/${cloverOrder.id}/payments`, {
         tender: { id: tenderId },
@@ -123,9 +125,27 @@ async function pushOrder(order) {
     }
 
     console.log(`[clover] pushed order ${order.pickup_code} -> ${creds.key} (${cloverOrder.id})`);
-    return true;
+    return cloverOrder.id;
   } catch (err) {
     console.error('[clover] push failed for', order.pickup_code, '-', err.message);
+    return false;
+  }
+}
+
+// A phone order that was pushed unpaid got paid online (text link):
+// record the payment on the open Clover order so staff don't charge twice.
+async function markOrderPaid(restaurant, cloverOrderId, totalDollars, pickupCode) {
+  const creds = credsFor(restaurant);
+  if (!creds || !cloverOrderId) return false;
+  try {
+    const tenderId = await externalTender(creds);
+    if (!tenderId) return false;
+    await cv(creds, 'POST', `/orders/${cloverOrderId}/payments`, { tender: { id: tenderId }, amount: cents(totalDollars), offline: false });
+    await cv(creds, 'POST', `/orders/${cloverOrderId}`, { note: `PHONE ${pickupCode || ''} - PAID ONLINE by text link (Stripe)` }).catch(() => {});
+    console.log(`[clover] marked phone order ${pickupCode} paid (${cloverOrderId})`);
+    return true;
+  } catch (err) {
+    console.error('[clover] mark paid failed for', pickupCode, '-', err.message);
     return false;
   }
 }
@@ -144,4 +164,4 @@ async function testConnection(restaurant) {
   } catch (e) { return { ok: false, message: 'Could not reach Clover: ' + e.message }; }
 }
 
-module.exports = { pushOrder, credsFor, testConnection };
+module.exports = { pushOrder, markOrderPaid, credsFor, testConnection };

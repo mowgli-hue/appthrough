@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { authHeaders, getToken, getRestaurantId } from '../utils/auth';
 import { playNewOrderChime, autoUnlockOnFirstTap, startAlertLoop, stopAlertLoop } from '../utils/alertSound';
 import { formatTime, timeAgo, minutesSince } from '../utils/time';
+import PhoneOrderSheet from '../components/PhoneOrderSheet';
 
 
 function KitchenPickup() {
@@ -13,6 +14,7 @@ function KitchenPickup() {
   const [view, setView] = useState('orders'); // orders | stock
   const [menu, setMenu] = useState([]);
   const [newIds, setNewIds] = useState(() => new Set());
+  const [phoneOpen, setPhoneOpen] = useState(false);
   const knownIdsRef = useRef(null); // null until first successful load
   const soundOnRef = useRef(false);
   useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
@@ -103,7 +105,20 @@ function KitchenPickup() {
     });
   };
 
+  const isUnpaid = (o) => o.source === 'phone' && o.payment_status !== 'paid' && o.payment_status !== 'paid_in_store';
+  const markPaid = async (orderId) => {
+    await fetch(`/api/orders/${orderId}/mark-paid`, { method: 'POST', headers: { ...authHeaders() } });
+    load();
+  };
+  // Staff created this order themselves: don't ring for it
+  const onPhoneCreated = (o) => { if (knownIdsRef.current) knownIdsRef.current.add(o.id); load(); };
+
   const updateStatus = async (orderId, status) => {
+    const ord = orders.find(o => o.id === orderId);
+    if (status === 'picked_up' && ord && isUnpaid(ord)) {
+      if (!window.confirm(`${ord.pickup_code} is NOT PAID ($${Number(ord.total).toFixed(2)}).\n\nOK = customer tapped/paid now, mark paid & picked up.`)) return;
+      await fetch(`/api/orders/${orderId}/mark-paid`, { method: 'POST', headers: { ...authHeaders() } });
+    }
     acknowledge(orderId);
     await fetch(`/api/orders/${orderId}/status`, {
       method: 'PATCH',
@@ -136,6 +151,7 @@ function KitchenPickup() {
           <button className={view === 'orders' ? 'kview active' : 'kview'} onClick={() => setView('orders')}>Orders</button>
           <button className={view === 'stock' ? 'kview active' : 'kview'} onClick={() => { setView('stock'); loadMenu(); }}>Sold out</button>
         </div>
+        <button className="po-open-btn" onClick={() => setPhoneOpen(true)}>📞 + Phone order</button>
         <button
           className={`kitchen-sound-toggle ${soundOn ? 'on' : ''}`}
           onClick={toggleSound}
@@ -143,6 +159,10 @@ function KitchenPickup() {
           {soundOn ? '🔔 Sound on' : '🔕 Tap to enable sound'}
         </button>
       </div>
+
+      {phoneOpen && (
+        <PhoneOrderSheet restaurantId={getRestaurantId()} onClose={() => setPhoneOpen(false)} onCreated={onPhoneCreated} />
+      )}
 
       {view === 'stock' && (
         <div className="portal-menu">
@@ -177,7 +197,7 @@ function KitchenPickup() {
             >
               {newIds.has(order.id) && <div className="kitchen-new-badge">NEW ORDER — tap to stop ringing</div>}
               <div className="kitchen-card-top">
-                <div className="kitchen-code">{order.pickup_code}{order.order_type === 'dinein' && <span className="dinein-badge">DINE-IN</span>}</div>
+                <div className="kitchen-code">{order.pickup_code}{order.order_type === 'dinein' && <span className="dinein-badge">DINE-IN</span>}{order.source === 'phone' && <span className="phone-badge">📞 PHONE</span>}</div>
                 <span className={`status-badge status-${order.status}`}>
                   {order.status}
                 </span>
@@ -190,6 +210,13 @@ function KitchenPickup() {
                 </span>
               </div>
               {order.note && <div className="order-note">📝 {order.note}</div>}
+              {isUnpaid(order) && (
+                <div className="unpaid-bar" onClick={e => e.stopPropagation()}>
+                  <span>💳 NOT PAID · ${Number(order.total).toFixed(2)} · take tap at pickup</span>
+                  <button onClick={() => markPaid(order.id)}>Mark paid</button>
+                </div>
+              )}
+              {order.source === 'phone' && !isUnpaid(order) && <div className="paid-bar">✓ PAID</div>}
               <ul className="kitchen-items">
                 {order.items.map((item, i) => (
                   <li key={i}>

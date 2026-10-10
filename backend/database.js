@@ -157,5 +157,8 @@ for (const [n, t] of [['stripe_customer_id', 'TEXT'], ['google_sub', 'TEXT'], ['
 // Add payment_id to orders
 addCol('payment_id', 'TEXT');
 addCol('payment_status', "TEXT DEFAULT 'pending'");
+// 'app' (customer ordered in App-Thru) or 'phone' (staff entered a call-in order)
+addCol('source', "TEXT DEFAULT 'app'");
+addCol('clover_order_id', 'TEXT');
 
 module.exports = db;

@@ -53,6 +53,17 @@ async function notifyOrderPlaced(order) {
   );
 }
 
+async function notifyPhoneOrderPlaced(order) {
+  if (!order.customer_phone) return;
+  const base = (process.env.PUBLIC_URL || 'https://www.appthru.ca').replace(/\/$/, '');
+  await sendSMS(
+    order.customer_phone,
+    order.payLink
+      ? `🧾 ${order.restaurant_name}: Hi ${order.customer_name || 'there'}, we got your phone order. Pickup code: ${order.pickup_code}. Pay $${Number(order.total).toFixed(2)} securely here: ${base}/pay/${order.id} (or tap your card when you pick up).`
+      : `🧾 ${order.restaurant_name}: Hi ${order.customer_name || 'there'}, we got your phone order. Pickup code: ${order.pickup_code}. Total $${Number(order.total).toFixed(2)} - pay by tap when you pick up. Track it: ${base}/order/${order.id}`
+  );
+}
+
 async function notifyOrderReady(order) {
   if (!order.customer_phone) return;
   await sendSMS(
@@ -85,4 +96,4 @@ async function notifyRestaurantNewOrder(order, notificationPhone) {
   );
 }
 
-module.exports = { sendSMS, notifyOrderPlaced, notifyOrderReady, sendReceipt, notifyRestaurantNewOrder };
+module.exports = { sendSMS, notifyOrderPlaced, notifyPhoneOrderPlaced, notifyOrderReady, sendReceipt, notifyRestaurantNewOrder };
