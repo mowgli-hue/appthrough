@@ -16,6 +16,9 @@ function MerchantDashboard() {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
+  const [notFound, setNotFoundState] = useState(false);
+  const notFoundRef = useRef(false);
+  const setNotFound = (v) => { notFoundRef.current = v; setNotFoundState(v); };
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem('appthru_sound') !== 'off');
   const [newIds, setNewIds] = useState(() => new Set());
   const [phoneOpen, setPhoneOpen] = useState(false);
@@ -50,18 +53,21 @@ function MerchantDashboard() {
 
   const loadStats = useCallback(() => {
     fetch(`/api/merchants/${id}/stats`, { headers: { ...authHeaders() } })
-      .then(r => {
+      .then(async r => {
         if (r.status === 401 || r.status === 403) { setUnauthorized(true); return null; }
+        if (r.status === 404) { setNotFound(true); return null; }
+        if (!r.ok) { setTimeout(loadStats, 5000); return null; } // temporary error: keep trying
         return r.json();
       })
-      .then(d => { if (d) setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(d => { if (d && d.restaurant) { setData(d); setNotFound(false); setLoading(false); } else if (notFoundRef.current) setLoading(false); })
+      .catch(() => { setTimeout(loadStats, 5000); });
   }, [id]);
 
   const loadOrders = useCallback(async () => {
     try {
       const res = await fetch('/api/pickup-orders', { headers: { ...authHeaders() } });
       if (res.status === 401 || res.status === 403) { setUnauthorized(true); return; }
+      if (!res.ok) return; // temporary error: keep last list, next poll retries
       const list = await res.json();
       const ids = new Set(list.map(o => o.id));
       if (knownIdsRef.current) {
@@ -133,8 +139,8 @@ function MerchantDashboard() {
       </div>
     );
   }
-  if (loading) return <div className="loading"><div className="spinner"></div></div>;
-  if (!data?.restaurant) return <div className="error-page"><h2>Restaurant not found</h2></div>;
+  if (notFound) return <div className="error-page"><h2>Restaurant not found</h2></div>;
+  if (loading || !data?.restaurant) return <div className="loading"><div className="spinner"></div></div>;
 
   const { restaurant, stats } = data;
   const menuByCat = menu.reduce((acc, it) => {

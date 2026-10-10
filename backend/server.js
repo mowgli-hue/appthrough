@@ -40,9 +40,19 @@ app.use(express.json());
 app.set('trust proxy', 1);
 
 // --- Rate limiting ----------------------------------------------------------
+// Signed-in restaurant screens (kitchen tablet, dashboard) poll every few
+// seconds — several on one store Wi-Fi easily pass any per-IP cap, which used
+// to block them ("Too many requests" -> "Restaurant not found"). Skip them.
+function isMerchantRequest(req) {
+  const h = req.headers.authorization || '';
+  if (!h.startsWith('Bearer ')) return false;
+  const d = auth.verifyToken ? auth.verifyToken(h.slice(7)) : null;
+  return Boolean(d && d.typ !== 'customer');
+}
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 600,
+  max: 3000, // per IP; customers at one store share the Wi-Fi IP
+  skip: isMerchantRequest,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
@@ -56,7 +66,7 @@ const authLimiter = rateLimit({
 });
 const orderLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  max: 120, // shared store Wi-Fi: many customers, one IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many orders from this device, please try again later' },
@@ -191,6 +201,45 @@ app.post('/api/payments/create', async (req, res) => {
   res.json({ paymentId, ...result });
 });
 
+
+// Move a paid order from awaiting_payment into the kitchen queue exactly once
+// (atomic: concurrent callers can't double-notify), then text the customer,
+// alert the restaurant, and push it to Clover.
+function releasePaidOrder(orderId, paymentId, why) {
+  const changed = db.prepare(
+    "UPDATE orders SET status = 'preparing', payment_status = 'paid', payment_id = COALESCE(?, payment_id) WHERE id = ? AND status = 'awaiting_payment'"
+  ).run(paymentId || null, orderId).changes;
+  if (!changed) return false;
+  const ord = db.prepare(`
+    SELECT o.*, r.name as restaurant_name, r.notification_phone, r.notification_email
+    FROM orders o JOIN restaurants r ON o.restaurant_id = r.id WHERE o.id = ?
+  `).get(orderId);
+  if (!ord) return false;
+  if (why !== 'confirm') console.log(`[reconcile] released paid order ${ord.pickup_code} (${orderId})`);
+  if (ord.customer_phone) {
+    sms.notifyOrderPlaced({
+      customer_name: ord.customer_name || 'there', customer_phone: ord.customer_phone,
+      restaurant_name: ord.restaurant_name, pickup_code: ord.pickup_code,
+    }).catch(() => {});
+  }
+  sms.notifyRestaurantNewOrder(
+    { pickup_code: ord.pickup_code, items: ord.items, total: ord.total, customer_name: ord.customer_name, note: ord.note, location_name: ord.restaurant_name },
+    ord.notification_phone,
+  ).catch(() => {});
+  email.notifyRestaurantNewOrder(
+    { pickup_code: ord.pickup_code, items: ord.items, total: ord.total, customer_name: ord.customer_name, customer_phone: ord.customer_phone, note: ord.note },
+    ord.notification_email, ord.restaurant_name,
+  ).catch(() => {});
+  clover.pushOrder({
+    pickup_code: ord.pickup_code, items: JSON.parse(ord.items || '[]'),
+    subtotal: ord.subtotal, tax: ord.tax, service_fee: ord.service_fee, total: ord.total,
+    customer_name: ord.customer_name, note: ord.note, restaurant_name: ord.restaurant_name, restaurant_id: ord.restaurant_id,
+  }).catch(() => {});
+  return true;
+}
+// Don't ask Stripe about the same abandoned checkout more than once a minute
+const reconcileCheckedAt = new Map();
+
 app.post('/api/payments/confirm', async (req, res) => {
   const { paymentId, paymentIntentId } = req.body;
 
@@ -199,46 +248,18 @@ app.post('/api/payments/confirm', async (req, res) => {
     db.prepare('UPDATE payments SET status = ? WHERE id = ?').run('succeeded', paymentId);
     const payment = db.prepare('SELECT order_id FROM payments WHERE id = ?').get(paymentId);
     if (payment) {
+      const before = db.prepare('SELECT * FROM orders WHERE id = ?').get(payment.order_id);
+      const wasPaid = before && (before.payment_status === 'paid' || before.payment_status === 'paid_in_store');
       db.prepare("UPDATE orders SET payment_status = 'paid', payment_id = ? WHERE id = ?").run(paymentId, payment.order_id);
 
+      // Phone order paid by text link: settle the open Clover ticket (once)
+      const ordP = before;
+      if (ordP && !wasPaid && ordP.source === 'phone' && ordP.clover_order_id) {
+        const rest = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(ordP.restaurant_id);
+        clover.markOrderPaid(rest, ordP.clover_order_id, ordP.total, ordP.pickup_code).catch(() => {});
+      }
       // If this order was held for payment, release it to the kitchen now
-      const ord = db.prepare(`
-        SELECT o.*, r.name as restaurant_name, r.notification_phone, r.notification_email
-        FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
-        WHERE o.id = ?
-      `).get(payment.order_id);
-      // Phone order paid by text link: settle the open Clover ticket
-      if (ord && ord.source === 'phone' && ord.clover_order_id) {
-        const rest = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(ord.restaurant_id);
-        clover.markOrderPaid(rest, ord.clover_order_id, ord.total, ord.pickup_code).catch(() => {});
-      }
-      if (ord && ord.status === 'awaiting_payment') {
-        db.prepare("UPDATE orders SET status = 'preparing' WHERE id = ?").run(ord.id);
-        if (ord.customer_phone) {
-          sms.notifyOrderPlaced({
-            customer_name: ord.customer_name || 'there',
-            customer_phone: ord.customer_phone,
-            restaurant_name: ord.restaurant_name,
-            pickup_code: ord.pickup_code,
-          }).catch(() => {});
-        }
-        sms.notifyRestaurantNewOrder(
-          { pickup_code: ord.pickup_code, items: ord.items, total: ord.total, customer_name: ord.customer_name, note: ord.note, location_name: ord.restaurant_name },
-          ord.notification_phone,
-        ).catch(() => {});
-        email.notifyRestaurantNewOrder(
-          { pickup_code: ord.pickup_code, items: ord.items, total: ord.total, customer_name: ord.customer_name, customer_phone: ord.customer_phone, note: ord.note },
-          ord.notification_email,
-          ord.restaurant_name,
-        ).catch(() => {});
-        clover.pushOrder({
-          pickup_code: ord.pickup_code,
-          items: JSON.parse(ord.items || '[]'),
-          subtotal: ord.subtotal, tax: ord.tax, service_fee: ord.service_fee, total: ord.total,
-          customer_name: ord.customer_name, note: ord.note, restaurant_name: ord.restaurant_name,
-          restaurant_id: ord.restaurant_id,
-        }).catch(() => {});
-      }
+      releasePaidOrder(payment.order_id, paymentId, 'confirm');
     }
   }
 
@@ -574,12 +595,14 @@ app.get('/api/pickup-orders', auth.authMiddleware, async (req, res) => {
     `).all(req.merchant.restaurantId);
     for (const row of stuck) {
       if (!row.provider_payment_id || String(row.provider_payment_id).startsWith('dev_')) continue;
+      const last = reconcileCheckedAt.get(row.payment_id) || 0;
+      if (Date.now() - last < 60 * 1000) continue;
+      reconcileCheckedAt.set(row.payment_id, Date.now());
+      if (reconcileCheckedAt.size > 5000) reconcileCheckedAt.clear();
       const check = await payments.confirmPayment(row.provider_payment_id).catch(() => null);
       if (check && check.success && check.status === 'succeeded') {
         db.prepare("UPDATE payments SET status = 'succeeded' WHERE id = ?").run(row.payment_id);
-        db.prepare("UPDATE orders SET status = 'preparing', payment_status = 'paid', payment_id = ? WHERE id = ?")
-          .run(row.payment_id, row.order_id);
-        console.log('[reconcile] released stuck paid order', row.order_id);
+        releasePaidOrder(row.order_id, row.payment_id, 'reconcile');
       }
     }
   } catch (e) { console.warn('[reconcile] skipped:', e.message); }

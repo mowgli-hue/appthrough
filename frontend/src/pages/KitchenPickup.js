@@ -26,6 +26,7 @@ function KitchenPickup() {
         setUnauthorized(true);
         return;
       }
+      if (!res.ok) return; // temporary error: keep showing the last list
       const data = await res.json();
       setUnauthorized(false);
       setOrders(data);
