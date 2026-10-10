@@ -51,8 +51,10 @@ function isMerchantRequest(req) {
 }
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 3000, // per IP; customers at one store share the Wi-Fi IP
-  skip: isMerchantRequest,
+  max: 5000, // per IP, writes only; customers at one store share the Wi-Fi IP
+  // Reads (menus, restaurant list, order status) are never limited: a busy
+  // store has dozens of phones on one Wi-Fi all browsing at once.
+  skip: (req) => req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS' || isMerchantRequest(req),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
