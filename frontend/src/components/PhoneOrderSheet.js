@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { authHeaders } from '../utils/auth';
 
 // Staff enter a call-in order. Customer pays by tap at pickup, or by a
@@ -25,6 +25,11 @@ export default function PhoneOrderSheet({ restaurantId, onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(null);
+  const [flash, setFlash] = useState('');
+  const [step, setStep] = useState('items'); // items -> details
+  const orderRef = useRef(null);
+  const qtyOf = (itemId) => lines.filter(l => l.menu_item_id === itemId).reduce((n, l) => n + l.quantity, 0);
+  const pulse = (txt) => { setFlash(txt); clearTimeout(pulse.t); pulse.t = setTimeout(() => setFlash(''), 1200); };
 
   useEffect(() => {
     fetch(`/api/merchants/${restaurantId}/menu`, { headers: { ...authHeaders() } })
@@ -58,6 +63,7 @@ export default function PhoneOrderSheet({ restaurantId, onClose, onCreated }) {
         price: opt ? Number(opt.price) : Number(item.price), quantity: 1,
       }];
     });
+    pulse(`Added ${opt ? `${item.name} (${opt.name})` : item.name}`);
   };
   const tapItem = (item) => {
     const opts = parseOptions(item);
@@ -120,82 +126,98 @@ export default function PhoneOrderSheet({ restaurantId, onClose, onCreated }) {
     <div className="po-overlay" onClick={onClose}>
       <div className="po-sheet" onClick={e => e.stopPropagation()}>
         <div className="po-head">
-          <h2>📞 New phone order</h2>
+          <h2>📞 New phone order <small>{step === 'items' ? 'Step 1 of 2 · Items' : 'Step 2 of 2 · Customer & payment'}</small></h2>
           <button className="po-x" onClick={onClose} aria-label="Close">×</button>
         </div>
 
-        <div className="po-body">
-          <div className="po-menu">
-            <input className="po-input" type="search" placeholder="Search menu…" value={query} onChange={e => setQuery(e.target.value)} />
-            <div className="po-menu-list">
-              {Object.entries(shown).map(([cat, items]) => (
-                <div key={cat}>
-                  <div className="po-cat">{cat}</div>
-                  {items.map(it => {
-                    const opts = parseOptions(it);
-                    const from = opts ? Math.min(...opts.map(o => Number(o.price))) : Number(it.price);
-                    return (
-                      <button key={it.id} className="po-item" onClick={() => tapItem(it)}>
-                        <span>{it.name}</span>
-                        <span className="po-price">{opts ? 'from ' : ''}${from.toFixed(2)} <b>+</b></span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-              {menu.length === 0 && <p className="po-muted">Loading menu…</p>}
-            </div>
-          </div>
-
-          <div className="po-order">
-            <div className="po-lines">
-              {lines.length === 0 && <p className="po-muted">Tap items on the left to add them.</p>}
-              {lines.map(l => (
-                <div key={l.key} className="po-line">
-                  <span className="po-line-name">{l.name}</span>
-                  <span className="po-step">
-                    <button onClick={() => changeQty(l.key, -1)} aria-label="Less">−</button>
-                    <b>{l.quantity}</b>
-                    <button onClick={() => changeQty(l.key, 1)} aria-label="More">+</button>
-                  </span>
-                  <span className="po-line-total">${(l.price * l.quantity).toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="po-fields">
-              <input className="po-input" placeholder="Customer name" value={name} onChange={e => setName(e.target.value)} />
-              <input className="po-input" type="tel" inputMode="tel" placeholder="Phone (10 digits)" value={phone} onChange={e => setPhone(e.target.value)} />
-              <input className="po-input" placeholder="Note for the kitchen (optional)" value={note} onChange={e => setNote(e.target.value)} />
-              <div className="po-seg">
-                <button className={orderType === 'pickup' ? 'on' : ''} onClick={() => setOrderType('pickup')}>Pickup</button>
-                <button className={orderType === 'dinein' ? 'on' : ''} onClick={() => setOrderType('dinein')}>Dine-in</button>
-              </div>
-              <div className="po-paylabel">How will they pay?</div>
-              <div className="po-seg">
-                <button className={payMethod === 'pickup' ? 'on' : ''} onClick={() => setPayMethod('pickup')}>💳 Tap at pickup</button>
-                <button className={payMethod === 'link' ? 'on' : ''} onClick={() => setPayMethod('link')}>📱 Text pay link</button>
+        {step === 'items' ? (
+          <div className="po-body po-one">
+            <div className="po-menu">
+              <input className="po-input" type="search" placeholder="Search menu…" value={query} onChange={e => setQuery(e.target.value)} />
+              <div className="po-menu-list">
+                {Object.entries(shown).map(([cat, items]) => (
+                  <div key={cat}>
+                    <div className="po-cat">{cat}</div>
+                    <div className="po-grid">
+                      {items.map(it => {
+                        const opts = parseOptions(it);
+                        const from = opts ? Math.min(...opts.map(o => Number(o.price))) : Number(it.price);
+                        const q = qtyOf(it.id);
+                        return (
+                          <button key={it.id} type="button" className={`po-item ${q ? 'in' : ''}`} onClick={() => tapItem(it)}>
+                            <span>{q > 0 && <em className="po-qty">{q}</em>}{it.name}</span>
+                            <span className="po-price">{opts ? 'from ' : ''}${from.toFixed(2)} <b>{q ? '✓' : '+'}</b></span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {menu.length === 0 && <p className="po-muted">Loading menu…</p>}
               </div>
             </div>
-
-            <div className="po-totals">
-              <div><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
-              <div><span>GST 5%</span><span>${tax.toFixed(2)}</span></div>
-              <div className="po-grand"><span>Total</span><span>${total.toFixed(2)}</span></div>
-            </div>
-            {error && <div className="po-error">{error}</div>}
-            <button className="po-primary" disabled={saving} onClick={submit}>
-              {saving ? 'Adding…' : `Add order${count ? ` · ${count} item${count === 1 ? '' : 's'}` : ''} · $${total.toFixed(2)}`}
-            </button>
           </div>
-        </div>
+        ) : (
+          <div className="po-body po-one">
+            <div className="po-order" ref={orderRef}>
+              <button type="button" className="po-back" onClick={() => setStep('items')}>← Add more items</button>
+              <div className="po-lines">
+                {lines.map(l => (
+                  <div key={l.key} className="po-line">
+                    <span className="po-line-name">{l.name}</span>
+                    <span className="po-step">
+                      <button type="button" onClick={() => changeQty(l.key, -1)} aria-label="Less">−</button>
+                      <b>{l.quantity}</b>
+                      <button type="button" onClick={() => changeQty(l.key, 1)} aria-label="More">+</button>
+                    </span>
+                    <span className="po-line-total">${(l.price * l.quantity).toFixed(2)}</span>
+                  </div>
+                ))}
+                {lines.length === 0 && <p className="po-muted">No items yet — go back and add some.</p>}
+              </div>
+
+              <div className="po-fields">
+                <input className="po-input" placeholder="Customer name" value={name} onChange={e => setName(e.target.value)} />
+                <input className="po-input" type="tel" inputMode="tel" placeholder="Phone (10 digits)" value={phone} onChange={e => setPhone(e.target.value)} />
+                <input className="po-input" placeholder="Note for the kitchen (optional)" value={note} onChange={e => setNote(e.target.value)} />
+                <div className="po-seg">
+                  <button type="button" className={orderType === 'pickup' ? 'on' : ''} onClick={() => setOrderType('pickup')}>Pickup</button>
+                  <button type="button" className={orderType === 'dinein' ? 'on' : ''} onClick={() => setOrderType('dinein')}>Dine-in</button>
+                </div>
+                <div className="po-paylabel">How will they pay?</div>
+                <div className="po-seg">
+                  <button type="button" className={payMethod === 'pickup' ? 'on' : ''} onClick={() => setPayMethod('pickup')}>💳 Tap at pickup</button>
+                  <button type="button" className={payMethod === 'link' ? 'on' : ''} onClick={() => setPayMethod('link')}>📱 Text pay link</button>
+                </div>
+              </div>
+
+              <div className="po-totals">
+                <div><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                <div><span>GST 5%</span><span>${tax.toFixed(2)}</span></div>
+                <div className="po-grand"><span>Total</span><span>${total.toFixed(2)}</span></div>
+              </div>
+              {error && <div className="po-error">{error}</div>}
+              <button type="button" className="po-primary" disabled={saving || !lines.length} onClick={submit}>
+                {saving ? 'Adding…' : `Add order · $${total.toFixed(2)}`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'items' && (
+          <div className="po-nextbar">
+            <span>{count ? `🧾 ${count} item${count === 1 ? '' : 's'} · $${total.toFixed(2)}` : 'Tap items to add them'}</span>
+            <button type="button" className="po-next" disabled={!count} onClick={() => { setError(''); setStep('details'); }}>Next →</button>
+          </div>
+        )}
+        {flash && step === 'items' && <div className="po-flash">✓ {flash}</div>}
 
         {sizeFor && (
           <div className="po-size" onClick={() => setSizeFor(null)}>
             <div className="po-size-box" onClick={e => e.stopPropagation()}>
               <h3>{sizeFor.item.name}</h3>
               {sizeFor.opts.map(o => (
-                <button key={o.name} className="po-item" onClick={() => { addLine(sizeFor.item, o); setSizeFor(null); }}>
+                <button key={o.name} type="button" className="po-item" onClick={() => { addLine(sizeFor.item, o); setSizeFor(null); }}>
                   <span>{o.name}</span><span className="po-price">${Number(o.price).toFixed(2)} <b>+</b></span>
                 </button>
               ))}
