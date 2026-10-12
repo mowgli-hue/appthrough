@@ -22,6 +22,9 @@ function MerchantDashboard() {
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem('appthru_sound') !== 'off');
   const [newIds, setNewIds] = useState(() => new Set());
   const [phoneOpen, setPhoneOpen] = useState(false);
+  const [stMonth, setStMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [stmt, setStmt] = useState(null);
+  const [stmtLoading, setStmtLoading] = useState(false);
   const knownIdsRef = useRef(null);
   const soundOnRef = useRef(false);
   useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
@@ -50,6 +53,28 @@ function MerchantDashboard() {
     } catch {}
   }, [id]);
   useEffect(() => { if (tab === 'history' && !historyLoaded) loadHistory(); }, [tab, historyLoaded, loadHistory]);
+
+  const loadStatement = useCallback(async (month) => {
+    setStmtLoading(true);
+    try {
+      let st = null;
+      for (let i = 0; i < 6; i++) { // Stripe fee lookups are batched; loop until all fetched
+        const r = await fetch(`/api/merchants/${id}/statement?month=${month}`, { headers: { ...authHeaders() } });
+        if (!r.ok) break;
+        st = await r.json();
+        setStmt(st);
+        if (!st.fees_pending) break;
+      }
+    } catch {}
+    setStmtLoading(false);
+  }, [id]);
+  useEffect(() => { if (tab === 'statement') loadStatement(stMonth); }, [tab, stMonth, loadStatement]);
+  const shiftMonth = (n) => {
+    const [y, m] = stMonth.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1 + n, 1));
+    setStMonth(dt.toISOString().slice(0, 7));
+  };
+  const money = (v) => `$${Number(v || 0).toFixed(2)}`;
 
   const loadStats = useCallback(() => {
     fetch(`/api/merchants/${id}/stats`, { headers: { ...authHeaders() } })
@@ -198,6 +223,7 @@ function MerchantDashboard() {
         </button>
         <button className={tab === 'history' ? 'portal-tab active' : 'portal-tab'} onClick={() => setTab('history')}>History</button>
         <button className={tab === 'insights' ? 'portal-tab active' : 'portal-tab'} onClick={() => setTab('insights')}>Insights</button>
+        <button className={tab === 'statement' ? 'portal-tab active' : 'portal-tab'} onClick={() => setTab('statement')}>Statement</button>
         <button className={tab === 'menu' ? 'portal-tab active' : 'portal-tab'} onClick={() => setTab('menu')}>Menu</button>
       </div>
 
@@ -281,6 +307,77 @@ function MerchantDashboard() {
               {o.note && <div className="history-note">📝 {o.note}</div>}
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'statement' && (
+        <div className="stmt">
+          <div className="stmt-head">
+            <button className="btn-secondary btn-sm" onClick={() => shiftMonth(-1)}>‹</button>
+            <strong>{new Date(stMonth + '-01T12:00:00Z').toLocaleString('en-CA', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</strong>
+            <button className="btn-secondary btn-sm" onClick={() => shiftMonth(1)} disabled={stMonth >= new Date().toISOString().slice(0, 7)}>›</button>
+            <span className="stmt-spacer" />
+            <button className="btn-secondary btn-sm" onClick={async () => {
+              const r = await fetch(`/api/merchants/${id}/statement.csv?month=${stMonth}`, { headers: { ...authHeaders() } });
+              const blob = await r.blob();
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = `appthru-statement-${stMonth}.csv`;
+              a.click();
+            }}>⬇ Download CSV</button>
+          </div>
+
+          {(!stmt || stmt.month !== stMonth) && <p className="history-empty">{stmtLoading ? 'Building statement…' : 'No data.'}</p>}
+
+          {stmt && stmt.month === stMonth && (
+            <>
+              <div className={`stmt-net ${stmt.settlement.net >= 0 ? 'pos' : 'neg'}`}>
+                <div className="stmt-net-label">
+                  {stmt.settlement.direction === 'appthru_pays_restaurant' ? 'App-Thru owes you' : 'You owe App-Thru'}
+                </div>
+                <div className="stmt-net-amount">{money(Math.abs(stmt.settlement.net))}</div>
+                <div className="stmt-net-sub">
+                  {money(stmt.settlement.owed_to_restaurant)} owed to you (online orders) − {money(stmt.settlement.owed_to_appthru)} owed to App-Thru (fees on in-store orders)
+                  {stmt.fees_pending > 0 && <> · <em>{stmt.fees_pending} Stripe fee{stmt.fees_pending === 1 ? '' : 's'} still loading</em></>}
+                </div>
+              </div>
+
+              <div className="stmt-grid">
+                <div className="insight-card">
+                  <h3>💳 Online orders <small>paid in the app · App-Thru collected</small></h3>
+                  <div className="insight-rows">
+                    <div className="insight-row"><span>Orders</span><strong>{stmt.online.count}</strong></div>
+                    <div className="insight-row"><span>Food</span><strong>{money(stmt.online.food)}</strong></div>
+                    <div className="insight-row"><span>GST (5%)</span><strong>{money(stmt.online.gst)}</strong></div>
+                    <div className="insight-row"><span>App-Thru fees</span><strong>{money(stmt.online.appthru_fee)}</strong></div>
+                    <div className="insight-row"><span>Customers paid</span><strong>{money(stmt.online.total)}</strong></div>
+                    <div className="insight-row stmt-sub"><span>Stripe fees ({stmt.online.stripe_fee_known}/{stmt.online.count} known) · paid by {stmt.processing_fee_payer === 'restaurant' ? 'you' : 'App-Thru'}</span><strong>{money(stmt.online.stripe_fee)}</strong></div>
+                    <div className="insight-row stmt-total"><span>Owed to you</span><strong>{money(stmt.settlement.owed_to_restaurant)}</strong></div>
+                  </div>
+                </div>
+                <div className="insight-card">
+                  <h3>🏪 In-store orders <small>tap / cash at the counter · you collected</small></h3>
+                  <div className="insight-rows">
+                    <div className="insight-row"><span>Orders</span><strong>{stmt.instore.count}</strong></div>
+                    <div className="insight-row"><span>Food</span><strong>{money(stmt.instore.food)}</strong></div>
+                    <div className="insight-row"><span>GST (5%)</span><strong>{money(stmt.instore.gst)}</strong></div>
+                    <div className="insight-row"><span>Collected by tap</span><strong>{money(stmt.instore.tap)}</strong></div>
+                    <div className="insight-row"><span>Collected in cash</span><strong>{money(stmt.instore.cash)}</strong></div>
+                    <div className="insight-row stmt-total"><span>App-Thru fees owed</span><strong>{money(stmt.settlement.owed_to_appthru)}</strong></div>
+                  </div>
+                </div>
+                <div className="insight-card">
+                  <h3>Other</h3>
+                  <div className="insight-rows">
+                    <div className="insight-row"><span>Cancelled / refunded (excluded)</span><strong>{stmt.cancelled.count} · {money(stmt.cancelled.refunded)}</strong></div>
+                    <div className="insight-row"><span>Still unpaid (not settled yet)</span><strong>{stmt.unpaid.count} · {money(stmt.unpaid.total)}</strong></div>
+                    <div className="insight-row"><span>Total App-Thru fees this month</span><strong>{money(stmt.appthru.revenue)}</strong></div>
+                  </div>
+                  <p className="portal-hint">Full order-by-order detail is in the CSV. App-Thru fees shown without GST — confirm treatment with your accountant.</p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 

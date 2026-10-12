@@ -161,7 +161,14 @@ addCol('payment_status', "TEXT DEFAULT 'pending'");
 addCol('source', "TEXT DEFAULT 'app'");
 addCol('clover_order_id', 'TEXT');
 addCol('pay_method', 'TEXT'); // card | link | cash | tap (how the customer pays / paid)
+// Accounting: actual processor fee per payment (from Stripe), refunds
+const pcols = db.prepare('PRAGMA table_info(payments)').all().map(c => c.name);
+for (const [n, t] of [['stripe_fee_cents', 'INTEGER'], ['stripe_net_cents', 'INTEGER'], ['refunded_cents', 'INTEGER DEFAULT 0'], ['fee_checked_at', 'DATETIME']]) {
+  if (!pcols.includes(n)) db.exec(`ALTER TABLE payments ADD COLUMN ${n} ${t}`);
+}
 const rcols = db.prepare('PRAGMA table_info(restaurants)').all().map(c => c.name);
 if (!rcols.includes('accept_cash')) db.exec('ALTER TABLE restaurants ADD COLUMN accept_cash INTEGER DEFAULT 1');
+// Who absorbs card processing (Stripe) fees on online orders: 'appthru' | 'restaurant'
+if (!rcols.includes('processing_fee_payer')) db.exec("ALTER TABLE restaurants ADD COLUMN processing_fee_payer TEXT DEFAULT 'appthru'");
 
 module.exports = db;

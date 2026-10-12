@@ -15,6 +15,7 @@ function RestaurantAdmin() {
     agent_voice: 'friendly',
     drive_thru_enabled: true,
     accept_cash: true,
+    processing_fee_payer: 'appthru',
     notification_phone: '',
     notification_email: '',
     clover_mid: '',
@@ -38,6 +39,7 @@ function RestaurantAdmin() {
           agent_voice: data.agent_voice || 'friendly',
           drive_thru_enabled: data.drive_thru_enabled !== 0,
           accept_cash: data.accept_cash !== 0,
+          processing_fee_payer: data.processing_fee_payer === 'restaurant' ? 'restaurant' : 'appthru',
           notification_phone: data.notification_phone || '',
           notification_email: data.notification_email || '',
           clover_mid: data.clover_mid || '',
@@ -115,6 +117,20 @@ function RestaurantAdmin() {
                 <span className="admin-toggle-knob" />
               </button>
               <span>{form.accept_cash ? 'Allowed' : 'Card only'}</span>
+            </div>
+          </label>
+
+          <label className="admin-label">
+            Card processing fees (Stripe) on app orders
+            <small>Who absorbs Stripe's ~2.9% + $0.30 on online payments. Shows on the monthly Statement.</small>
+            <div className="admin-toggle-row">
+              <button
+                className={`admin-toggle ${form.processing_fee_payer === 'restaurant' ? 'on' : ''}`}
+                onClick={() => update('processing_fee_payer', form.processing_fee_payer === 'restaurant' ? 'appthru' : 'restaurant')}
+              >
+                <span className="admin-toggle-knob" />
+              </button>
+              <span>{form.processing_fee_payer === 'restaurant' ? 'Restaurant pays (deducted from payout)' : 'App-Thru pays'}</span>
             </div>
           </label>
 

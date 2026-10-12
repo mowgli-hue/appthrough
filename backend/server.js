@@ -8,6 +8,7 @@ const sms = require('./sms');
 const email = require('./email');
 const clover = require('./clover');
 const payments = require('./payments');
+const statement = require('./statement');
 const auth = require('./auth');
 const rateLimit = require('express-rate-limit');
 const menuImport = require('./menu-import');
@@ -248,6 +249,10 @@ app.post('/api/payments/confirm', async (req, res) => {
   const result = await payments.confirmPayment(paymentIntentId);
   if (result.success && (result.dev || result.status === 'succeeded')) {
     db.prepare('UPDATE payments SET status = ? WHERE id = ?').run('succeeded', paymentId);
+    // Accounting: record the actual Stripe fee for this payment (best effort)
+    payments.fetchPaymentFees(paymentIntentId).then(f => {
+      if (f) db.prepare("UPDATE payments SET stripe_fee_cents = ?, stripe_net_cents = ?, refunded_cents = ?, fee_checked_at = datetime('now') WHERE id = ?").run(f.fee, f.net, f.refunded, paymentId);
+    }).catch(() => {});
     const payment = db.prepare('SELECT order_id FROM payments WHERE id = ?').get(paymentId);
     if (payment) {
       const before = db.prepare('SELECT * FROM orders WHERE id = ?').get(payment.order_id);
@@ -699,7 +704,7 @@ app.post('/api/orders/:id/cancel', orderLimiter, async (req, res) => {
         return res.status(502).json({ error: 'Refund failed — please contact the restaurant to cancel.' });
       }
       refunded = true;
-      db.prepare("UPDATE payments SET status = 'refunded' WHERE id = ?").run(order.payment_id);
+      db.prepare("UPDATE payments SET status = 'refunded', refunded_cents = ? WHERE id = ?").run(result.amount || Math.round(order.total * 100), order.payment_id);
     }
   }
   db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ?").run(order.id);
@@ -976,6 +981,7 @@ app.patch('/api/restaurants/:id/config', auth.authMiddleware, requireRestaurantO
   if (req.body.name !== undefined && String(req.body.name).trim()) { fields.push('name = ?'); values.push(String(req.body.name).trim().slice(0, 80)); }
   if (req.body.address !== undefined) { fields.push('address = ?'); values.push(String(req.body.address).slice(0, 160)); }
   if (req.body.accept_cash !== undefined) { fields.push('accept_cash = ?'); values.push(req.body.accept_cash ? 1 : 0); }
+  if (req.body.processing_fee_payer !== undefined) { fields.push('processing_fee_payer = ?'); values.push(req.body.processing_fee_payer === 'restaurant' ? 'restaurant' : 'appthru'); }
 
   if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
 
@@ -1229,6 +1235,30 @@ app.get('/api/merchants/:id/orders', auth.authMiddleware, requireRestaurantOwner
   `).all(req.params.id, limit);
   orders.forEach(o => { try { o.items = JSON.parse(o.items); } catch { o.items = []; } });
   res.json(orders);
+});
+
+// ---- Monthly settlement statement (App-Thru <-> restaurant) ----
+app.get('/api/merchants/:id/statement', auth.authMiddleware, requireRestaurantOwnership, async (req, res) => {
+  const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Restaurant not found' });
+  try {
+    const st = await statement.buildStatement(r, req.query.month);
+    res.json(st);
+  } catch (e) {
+    console.error('[statement]', e.message);
+    res.status(500).json({ error: 'Could not build statement' });
+  }
+});
+app.get('/api/merchants/:id/statement.csv', auth.authMiddleware, requireRestaurantOwnership, async (req, res) => {
+  const r = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Restaurant not found' });
+  try {
+    const st = await statement.buildStatement(r, req.query.month);
+    const safe = r.name.replace(/[^A-Za-z0-9]+/g, '-');
+    res.type('text/csv').set('Content-Disposition', `attachment; filename="appthru-statement-${safe}-${st.month}.csv"`).send(statement.statementCsv(st));
+  } catch (e) {
+    res.status(500).json({ error: 'Could not build statement' });
+  }
 });
 
 app.get('/api/merchants/:id/orders.csv', auth.authMiddleware, requireRestaurantOwnership, (req, res) => {

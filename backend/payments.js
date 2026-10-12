@@ -79,13 +79,29 @@ async function confirmPayment(paymentIntentId) {
 }
 
 // Full refund for a cancelled order (customer-initiated within the window)
+// Actual processor cost of a payment (cents), from Stripe's balance transaction.
+// Returns { fee, net, amount, refunded } or null when unavailable.
+async function fetchPaymentFees(paymentIntentId) {
+  if (!stripe || !paymentIntentId || String(paymentIntentId).startsWith('dev_')) return null;
+  try {
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge.balance_transaction'] });
+    const ch = pi.latest_charge;
+    if (!ch || !ch.balance_transaction || typeof ch.balance_transaction !== 'object') return null;
+    const bt = ch.balance_transaction;
+    return { fee: bt.fee || 0, net: bt.net || 0, amount: bt.amount || 0, refunded: ch.amount_refunded || 0 };
+  } catch (err) {
+    console.warn('[stripe] fee lookup failed:', paymentIntentId, err.message);
+    return null;
+  }
+}
+
 async function refundPayment(paymentIntentId) {
   if (!isConfigured() || !paymentIntentId || String(paymentIntentId).startsWith('dev_')) {
     return { success: true, dev: true };
   }
   try {
     const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
-    return { success: true, refundId: refund.id, status: refund.status };
+    return { success: true, refundId: refund.id, status: refund.status, amount: refund.amount };
   } catch (err) {
     console.error('[PAYMENT] Refund error:', err.message);
     return { success: false, error: err.message };
@@ -134,4 +150,4 @@ async function deleteStripeCustomer(stripeCustomerId) {
 }
 
 module.exports = {
-  deleteStripeCustomer, savedCardsEnabled, ensureStripeCustomer, createCustomerSession, createPaymentIntent, confirmPayment, refundPayment, isConfigured, publishableKey, CURRENCY };
+  fetchPaymentFees, deleteStripeCustomer, savedCardsEnabled, ensureStripeCustomer, createCustomerSession, createPaymentIntent, confirmPayment, refundPayment, isConfigured, publishableKey, CURRENCY };
