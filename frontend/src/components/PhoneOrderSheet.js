@@ -4,7 +4,7 @@ import { authHeaders } from '../utils/auth';
 // Staff enter a call-in order. Customer pays by tap at pickup, or by a
 // payment link we text them. Prices always come from the server menu.
 const TAX = 0.05;
-const PHONE_FEE = 0.49; // shown to staff; server is the source of truth
+const PHONE_FEE = 0; // no App-Thru fee on call-in orders (server is the source of truth)
 
 function parseOptions(item) {
   try {
@@ -197,7 +197,7 @@ export default function PhoneOrderSheet({ restaurantId, onClose, onCreated }) {
               <div className="po-totals">
                 <div><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
                 <div><span>GST 5%</span><span>${tax.toFixed(2)}</span></div>
-                <div><span>App-Thru fee</span><span>${fee.toFixed(2)}</span></div>
+                {fee > 0 && <div><span>App-Thru fee</span><span>${fee.toFixed(2)}</span></div>}
                 <div className="po-grand"><span>Total</span><span>${total.toFixed(2)}</span></div>
               </div>
               {error && <div className="po-error">{error}</div>}

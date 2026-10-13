@@ -36,7 +36,7 @@ function Checkout() {
 
   const isPickup = orderType === 'pickup';
   const effectiveDeliveryFee = 0;
-  const APPTHRU_FEE = 0.99;
+  const APPTHRU_FEE = payMethod === 'cash' ? 0 : 0.99; // no fee when paying cash at pickup
   const effectiveTotal = Math.round((subtotal + effectiveDeliveryFee + tax + APPTHRU_FEE) * 100) / 100;
   const amountCents = Math.round(effectiveTotal * 100);
 
@@ -353,7 +353,7 @@ function Checkout() {
           <div style={{ marginTop: 10 }}>
             <div className="v2-row"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
             <div className="v2-row"><span>GST</span><span>${tax.toFixed(2)}</span></div>
-            <div className="v2-row"><span>App-Thru fee</span><span>${APPTHRU_FEE.toFixed(2)}</span></div>
+            {APPTHRU_FEE > 0 && <div className="v2-row"><span>App-Thru fee</span><span>${APPTHRU_FEE.toFixed(2)}</span></div>}
             <div className="v2-row total"><span>Total</span><span>${effectiveTotal.toFixed(2)}</span></div>
           </div>
         </section>
@@ -369,7 +369,7 @@ function Checkout() {
                 </button>
                 <button type="button" role="radio" aria-checked={payMethod === 'cash'} className={payMethod === 'cash' ? 'on' : ''} onClick={() => setPayMethod('cash')}>
                   <span className="t">💵 Cash at pickup</span>
-                  <span className="s">Pay at the counter</span>
+                  <span className="s">Pay at the counter · no $0.99 fee</span>
                 </button>
               </div>
             )}

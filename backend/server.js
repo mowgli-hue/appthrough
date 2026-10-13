@@ -22,7 +22,7 @@ const APPTHRU_FEE = Math.max(0, parseFloat(process.env.APPTHRU_FEE ?? '0.99') ||
 // Sales tax rate (BC food = 5% GST). Override with TAX_RATE env.
 const TAX_RATE = Math.max(0, parseFloat(process.env.TAX_RATE ?? '0.05') || 0);
 // App-Thru fee on staff-entered call-in orders (both tap-at-pickup and pay link)
-const PHONE_ORDER_FEE = Math.max(0, parseFloat(process.env.PHONE_ORDER_FEE ?? '0.49') || 0);
+const PHONE_ORDER_FEE = Math.max(0, parseFloat(process.env.PHONE_ORDER_FEE ?? '0') || 0); // no fee on call-in orders
 
 // Sanitize size/portion options: [{name, price}] (max 8), or null
 function cleanOptions(raw) {
@@ -412,13 +412,15 @@ app.post('/api/orders', orderLimiter, (req, res) => {
   // Walk-up pickup = no delivery fee (that's the whole point!)
   const delivery_fee = type !== 'delivery' ? 0 : restaurant.delivery_fee;
   const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
-  const service_fee = APPTHRU_FEE;
+  // App-Thru fee only when the customer pays online; nothing on cash-at-pickup
+  // (so the restaurant never holds App-Thru's money)
+  const payCash = req.body.pay_method === 'cash';
+  const service_fee = payCash ? 0 : APPTHRU_FEE;
   const total = Math.round((subtotal + delivery_fee + tax + service_fee) * 100) / 100;
 
   const orderId = uuidv4();
   const pickupCode = type !== 'delivery' ? generatePickupCode(customer_name) : null;
   // Cash at pickup: goes straight to the kitchen, marked unpaid until staff collect
-  const payCash = req.body.pay_method === 'cash';
   if (payCash && restaurant.accept_cash === 0) {
     return res.status(400).json({ error: 'This restaurant does not take cash orders online' });
   }
